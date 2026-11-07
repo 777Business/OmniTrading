@@ -208,13 +208,13 @@ export function renderColorLinkBadge(
 
 export function updateBadgeElement(btn: HTMLElement, grp: ColorGroup): void {
   const isNone = grp.id === 'none';
-  btn.style.color = grp.hex;
-  btn.style.borderColor = isNone ? 'var(--vela-border, #263039)' : grp.borderHex;
-  btn.style.backgroundColor = isNone ? 'rgba(255, 255, 255, 0.04)' : `color-mix(in srgb, ${grp.hex} 16%, rgba(18, 22, 28, 0.9))`;
+  btn.style.color = isNone ? '#e2e8f0' : grp.hex;
+  btn.style.borderColor = isNone ? 'rgba(255, 255, 255, 0.16)' : grp.borderHex;
+  btn.style.backgroundColor = isNone ? 'rgba(255, 255, 255, 0.08)' : `color-mix(in srgb, ${grp.hex} 22%, rgba(20, 24, 33, 0.95))`;
 
   btn.innerHTML = `
-    <span class="omni-link-dot" style="background:${grp.hex}; ${isNone ? 'opacity:0.4;' : 'box-shadow: 0 0 5px ' + grp.hex + ';' }"></span>
-    <span class="omni-link-svg">${isNone ? UNLINKED_ICON_SVG : LINK_ICON_SVG}</span>
+    <span class="omni-link-dot" style="background:${isNone ? '#94a3b8' : grp.hex}; ${isNone ? 'opacity:0.95;' : 'box-shadow: 0 0 6px ' + grp.hex + ';' }"></span>
+    <span class="omni-link-svg" style="color:${isNone ? '#e2e8f0' : grp.hex};">${LINK_ICON_SVG}</span>
   `;
 }
 

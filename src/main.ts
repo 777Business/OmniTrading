@@ -109,6 +109,7 @@ const replayManager = new ReplayManager(() => workspace, (msg) => showToast(msg)
 (window as any).__quickTrade = quickTrade;
 (window as any).__chartPositionsOverlay = chartPositionsOverlay;
 (window as any).__tradingPanel = tradingPanel;
+(window as any).__spreadVisualizer = spreadVisualizer;
 
 // ---- Register Footprint (Order Flow) Chart Style --------------------------
 
@@ -563,7 +564,7 @@ function attachCellControls(ws: VelaWorkspace): void {
       addBtn.type = 'button';
       addBtn.className = 'vela-corner-btn add-btn';
       addBtn.title = 'Duplicate Chart (All Settings)';
-      addBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>';
+      addBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>';
       addBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const targetId = bar?.dataset.cellId || cell.id;
@@ -576,7 +577,7 @@ function attachCellControls(ws: VelaWorkspace): void {
       closeBtn.type = 'button';
       closeBtn.className = 'vela-corner-btn close-btn';
       closeBtn.title = `Close ${cell.symbol || 'chart'}`;
-      closeBtn.innerHTML = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>';
+      closeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>';
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const targetId = bar?.dataset.cellId || cell.id;

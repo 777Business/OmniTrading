@@ -389,7 +389,7 @@ export class ChartPositionsOverlay {
         : 2;
 
       // -------------------------------------------------------------
-      // 1. POSITION ENTRY LINE & BADGE
+      // 1. POSITION ENTRY LINE & BADGE (Discreet cTrader/TradingView style)
       // -------------------------------------------------------------
       const yEntry = this.priceToY(pos.entryPrice, res);
       if (yEntry !== null && yEntry >= 0 && yEntry <= chartHeight) {
@@ -400,12 +400,12 @@ export class ChartPositionsOverlay {
         entryLine.setAttribute('x2', String(maxLineX));
         entryLine.setAttribute('y2', String(yEntry));
         entryLine.setAttribute('stroke', entryColor);
-        entryLine.setAttribute('stroke-width', '1.5');
-        entryLine.setAttribute('stroke-dasharray', '6,4');
-        entryLine.setAttribute('opacity', '0.92');
+        entryLine.setAttribute('stroke-width', '1');
+        entryLine.setAttribute('stroke-dasharray', '4,4');
+        entryLine.setAttribute('opacity', '0.85');
         this.overlaySvg.appendChild(entryLine);
 
-        // Entry Badge floating on line
+        // Entry Badge floating on line - sleek & discreet
         const pnl = pos.unrealizedPnL || 0;
         const pnlFormatted = `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`;
         const pnlColor = pnl >= 0 ? '#22d3a5' : '#f87171';
@@ -414,20 +414,23 @@ export class ChartPositionsOverlay {
         entryBadge.className = 'omni-chart-position-badge';
         entryBadge.style.cssText = `
           position: absolute;
-          left: 12px;
+          left: 20px;
           top: ${yEntry}px;
           transform: translateY(-50%);
           display: inline-flex;
           align-items: center;
-          gap: 6px;
-          background: var(--vela-surface-sunken, #0b0e11);
-          border: 1px solid ${entryColor};
-          border-radius: 6px;
-          padding: 2px 8px;
+          gap: 5px;
+          background: rgba(18, 22, 28, 0.9);
+          backdrop-filter: blur(4px);
+          border: 1px solid ${entryColor}88;
+          border-radius: 4px;
+          padding: 1px 6px;
           font-size: 11px;
+          height: 20px;
+          box-sizing: border-box;
           color: var(--vela-fg-bright, #f8fafc);
           pointer-events: auto;
-          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
           user-select: none;
           z-index: 10;
         `;
@@ -436,69 +439,85 @@ export class ChartPositionsOverlay {
         const hasSl = typeof pos.stopLoss === 'number' && pos.stopLoss > 0;
 
         entryBadge.innerHTML = `
-          <span style="background:${entryColor}; color:#ffffff; font-weight:800; font-size:10px; padding:1px 6px; border-radius:3px; letter-spacing:0.3px;">
-            ${sideText} ${pos.volume.toFixed(2)}
+          <span style="background:${entryColor}; color:#ffffff; font-weight:700; font-size:9.5px; padding:1px 5px; border-radius:3px; letter-spacing:0.3px; line-height:1.2;">
+            ${sideText} ${pos.volume}
           </span>
-          <span style="color:var(--vela-fg-muted, #8b98a5); font-weight:600; font-family:monospace;">@ ${pos.entryPrice.toFixed(priceDecimals)}</span>
-          <span style="color:${pnlColor}; font-weight:700; font-family:monospace;">${pnlFormatted}</span>
-          ${!hasTp ? `<button type="button" class="btn-add-tp" title="Add Take Profit (TradingView bracket)" style="background:rgba(8,153,129,0.18); border:1px solid #089981; color:#22d3a5; font-size:10px; font-weight:700; padding:1px 5px; border-radius:3px; cursor:pointer;">+ TP</button>` : ''}
-          ${!hasSl ? `<button type="button" class="btn-add-sl" title="Add Stop Loss (TradingView bracket)" style="background:rgba(242,54,69,0.18); border:1px solid #f23645; color:#fca5a5; font-size:10px; font-weight:700; padding:1px 5px; border-radius:3px; cursor:pointer;">+ SL</button>` : ''}
+          <span style="color:${pnlColor}; font-weight:700; font-size:10px; font-family:monospace; line-height:1.2;">${pnlFormatted}</span>
+          ${!hasTp ? `<button type="button" class="btn-add-tp" title="Add Take Profit bracket" style="background:none; border:none; color:#22d3a5; font-size:9.5px; font-weight:700; padding:0 2px; cursor:pointer; opacity:0.8; transition:opacity 0.15s ease;">+TP</button>` : ''}
+          ${!hasSl ? `<button type="button" class="btn-add-sl" title="Add Stop Loss bracket" style="background:none; border:none; color:#fca5a5; font-size:9.5px; font-weight:700; padding:0 2px; cursor:pointer; opacity:0.8; transition:opacity 0.15s ease;">+SL</button>` : ''}
           <button type="button" class="btn-close-pos" title="Close Position at Market" style="
-            background: rgba(242, 54, 69, 0.2);
-            border: 1px solid rgba(242, 54, 69, 0.4);
-            color: #f87171;
+            background: transparent;
+            border: none;
+            color: #94a3b8;
             font-size: 11px;
             font-weight: 700;
-            padding: 1px 5px;
-            border-radius: 3px;
             cursor: pointer;
+            padding: 0 2px;
             margin-left: 2px;
-            line-height: 1.2;
+            line-height: 1;
+            border-radius: 2px;
+            transition: color 0.15s ease;
           ">✕</button>
         `;
 
-        // Wire 1-click close from chart badge
-        entryBadge.querySelector('.btn-close-pos')?.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          try {
-            const registry = BrokerRegistry.getInstance();
-            await registry.closePosition(pos.id);
-            this.toast(`✅ Closed ${sideText} position ${pos.id} at market.`);
-            this.refreshPositions();
-          } catch (err: any) {
-            this.toast(`❌ Close failed: ${err.message}`);
-          }
-        });
+        const addTpBtn = entryBadge.querySelector('.btn-add-tp') as HTMLElement | null;
+        if (addTpBtn) {
+          addTpBtn.addEventListener('mouseenter', () => { addTpBtn.style.opacity = '1'; });
+          addTpBtn.addEventListener('mouseleave', () => { addTpBtn.style.opacity = '0.8'; });
+          addTpBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const offsetPercent = isBuy ? 0.015 : -0.015;
+            const defaultTp = Number((pos.entryPrice * (1 + offsetPercent)).toFixed(priceDecimals));
+            try {
+              const registry = BrokerRegistry.getInstance();
+              await registry.modifyPosition({ positionId: pos.id, takeProfit: defaultTp });
+              this.toast(`🎯 Set Take Profit at ${defaultTp}. Drag line on chart to adjust.`);
+              this.refreshPositions();
+            } catch (err: any) {
+              this.toast(`❌ Could not set TP: ${err.message}`);
+            }
+          });
+        }
 
-        // Wire '+ TP' bracket creation button
-        entryBadge.querySelector('.btn-add-tp')?.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const offsetPercent = isBuy ? 0.015 : -0.015;
-          const defaultTp = Number((pos.entryPrice * (1 + offsetPercent)).toFixed(priceDecimals));
-          try {
-            const registry = BrokerRegistry.getInstance();
-            await registry.modifyPosition({ positionId: pos.id, takeProfit: defaultTp });
-            this.toast(`🎯 Set Take Profit at ${defaultTp}. Drag handle on chart to adjust.`);
-            this.refreshPositions();
-          } catch (err: any) {
-            this.toast(`❌ Could not set TP: ${err.message}`);
-          }
-        });
+        const addSlBtn = entryBadge.querySelector('.btn-add-sl') as HTMLElement | null;
+        if (addSlBtn) {
+          addSlBtn.addEventListener('mouseenter', () => { addSlBtn.style.opacity = '1'; });
+          addSlBtn.addEventListener('mouseleave', () => { addSlBtn.style.opacity = '0.8'; });
+          addSlBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const offsetPercent = isBuy ? -0.01 : 0.01;
+            const defaultSl = Number((pos.entryPrice * (1 + offsetPercent)).toFixed(priceDecimals));
+            try {
+              const registry = BrokerRegistry.getInstance();
+              await registry.modifyPosition({ positionId: pos.id, stopLoss: defaultSl });
+              this.toast(`🛡️ Set Stop Loss at ${defaultSl}. Drag line on chart to adjust.`);
+              this.refreshPositions();
+            } catch (err: any) {
+              this.toast(`❌ Could not set SL: ${err.message}`);
+            }
+          });
+        }
 
-        // Wire '+ SL' bracket creation button
-        entryBadge.querySelector('.btn-add-sl')?.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const offsetPercent = isBuy ? -0.01 : 0.01;
-          const defaultSl = Number((pos.entryPrice * (1 + offsetPercent)).toFixed(priceDecimals));
-          try {
-            const registry = BrokerRegistry.getInstance();
-            await registry.modifyPosition({ positionId: pos.id, stopLoss: defaultSl });
-            this.toast(`🛡️ Set Stop Loss at ${defaultSl}. Drag handle on chart to adjust.`);
-            this.refreshPositions();
-          } catch (err: any) {
-            this.toast(`❌ Could not set SL: ${err.message}`);
-          }
-        });
+        const closeBtn = entryBadge.querySelector('.btn-close-pos') as HTMLElement | null;
+        if (closeBtn) {
+          closeBtn.addEventListener('mouseenter', () => {
+            closeBtn.style.color = '#f87171';
+          });
+          closeBtn.addEventListener('mouseleave', () => {
+            closeBtn.style.color = '#94a3b8';
+          });
+          closeBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+              const registry = BrokerRegistry.getInstance();
+              await registry.closePosition(pos.id);
+              this.toast(`✅ Closed ${sideText} position ${pos.id} at market.`);
+              this.refreshPositions();
+            } catch (err: any) {
+              this.toast(`❌ Close failed: ${err.message}`);
+            }
+          });
+        }
 
         this.badgesContainer.appendChild(entryBadge);
       }
@@ -515,62 +534,70 @@ export class ChartPositionsOverlay {
           tpLine.setAttribute('x2', String(maxLineX));
           tpLine.setAttribute('y2', String(yTp));
           tpLine.setAttribute('stroke', '#089981');
-          tpLine.setAttribute('stroke-width', '1.4');
+          tpLine.setAttribute('stroke-width', '1');
           tpLine.setAttribute('stroke-dasharray', '4,3');
-          tpLine.setAttribute('opacity', '0.9');
+          tpLine.setAttribute('opacity', '0.85');
           this.overlaySvg.appendChild(tpLine);
 
           const tpDiff = Math.abs(pos.takeProfit - pos.entryPrice);
-          const tpPnlEst = tpDiff * pos.volume * (isBuy ? 1 : 1);
+          const tpPnlEst = tpDiff * pos.volume;
           const tpSign = (isBuy && pos.takeProfit > pos.entryPrice) || (!isBuy && pos.takeProfit < pos.entryPrice) ? '+' : '-';
 
           const tpBadge = document.createElement('div');
           tpBadge.className = 'omni-chart-tp-badge';
           tpBadge.style.cssText = `
             position: absolute;
-            left: 230px;
+            left: 145px;
             top: ${yTp}px;
             transform: translateY(-50%);
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            background: var(--vela-surface-sunken, #0b0e11);
-            border: 1px solid #089981;
-            border-radius: 5px;
-            padding: 2px 7px;
-            font-size: 11px;
+            gap: 4px;
+            background: rgba(18, 22, 28, 0.9);
+            border: 1px solid rgba(8, 153, 129, 0.6);
+            border-radius: 4px;
+            padding: 1px 6px;
+            height: 19px;
+            box-sizing: border-box;
             color: #22d3a5;
+            font-size: 10px;
             font-weight: 700;
+            cursor: ns-resize;
             pointer-events: auto;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
             z-index: 10;
             user-select: none;
           `;
+          tpBadge.title = 'Drag to adjust Take Profit';
 
           tpBadge.innerHTML = `
-            <span class="omni-drag-handle" title="Drag to adjust Take Profit" style="cursor: ns-resize; padding: 1px 4px; background: rgba(34, 211, 165, 0.15); border-radius: 3px; font-size: 10px; color: #22d3a5;">⇕ Drag</span>
-            <span class="tp-label-text">TP: ${pos.takeProfit.toFixed(priceDecimals)} (${tpSign}$${tpPnlEst.toFixed(2)})</span>
-            <button type="button" class="btn-remove-tp" title="Remove Take Profit" style="background:none; border:none; color:var(--vela-fg-muted, #8b98a5); cursor:pointer; font-size:11px; padding:0 2px;">✕</button>
+            <span class="omni-drag-handle tp-label-text" style="font-family:monospace; line-height:1.2;">TP ${tpSign}$${tpPnlEst.toFixed(2)}</span>
+            <button type="button" class="btn-remove-tp" title="Remove Take Profit" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:10px; padding:0 1px; line-height:1; transition:color 0.15s ease;">✕</button>
           `;
 
-          // Wire remove TP
-          tpBadge.querySelector('.btn-remove-tp')?.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            try {
-              const registry = BrokerRegistry.getInstance();
-              await registry.modifyPosition({ positionId: pos.id, takeProfit: undefined });
-              this.toast('Take Profit removed.');
-              this.refreshPositions();
-            } catch (err: any) {
-              this.toast(`❌ Failed: ${err.message}`);
-            }
-          });
-
-          // Wire drag handle for TP
-          const dragHandle = tpBadge.querySelector('.omni-drag-handle') as HTMLElement;
-          if (dragHandle) {
-            this.setupBracketDrag(dragHandle, 'tp', pos, tpLine, tpBadge, priceDecimals);
+          const removeTpBtn = tpBadge.querySelector('.btn-remove-tp') as HTMLElement | null;
+          if (removeTpBtn) {
+            removeTpBtn.addEventListener('mouseenter', () => {
+              removeTpBtn.style.color = '#f87171';
+            });
+            removeTpBtn.addEventListener('mouseleave', () => {
+              removeTpBtn.style.color = '#94a3b8';
+            });
+            removeTpBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              try {
+                const registry = BrokerRegistry.getInstance();
+                await registry.modifyPosition({ positionId: pos.id, takeProfit: undefined });
+                this.toast('Take Profit removed.');
+                this.refreshPositions();
+              } catch (err: any) {
+                this.toast(`❌ Failed: ${err.message}`);
+              }
+            });
           }
+
+          // Wire drag directly on tpBadge
+          this.setupBracketDrag(tpBadge, 'tp', pos, tpLine, tpBadge, priceDecimals);
 
           this.badgesContainer.appendChild(tpBadge);
         }
@@ -588,9 +615,9 @@ export class ChartPositionsOverlay {
           slLine.setAttribute('x2', String(maxLineX));
           slLine.setAttribute('y2', String(ySl));
           slLine.setAttribute('stroke', '#f23645');
-          slLine.setAttribute('stroke-width', '1.4');
+          slLine.setAttribute('stroke-width', '1');
           slLine.setAttribute('stroke-dasharray', '4,3');
-          slLine.setAttribute('opacity', '0.9');
+          slLine.setAttribute('opacity', '0.85');
           this.overlaySvg.appendChild(slLine);
 
           const slDiff = Math.abs(pos.stopLoss - pos.entryPrice);
@@ -600,49 +627,57 @@ export class ChartPositionsOverlay {
           slBadge.className = 'omni-chart-sl-badge';
           slBadge.style.cssText = `
             position: absolute;
-            left: 230px;
+            left: 145px;
             top: ${ySl}px;
             transform: translateY(-50%);
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            background: var(--vela-surface-sunken, #0b0e11);
-            border: 1px solid #f23645;
-            border-radius: 5px;
-            padding: 2px 7px;
-            font-size: 11px;
+            gap: 4px;
+            background: rgba(18, 22, 28, 0.9);
+            border: 1px solid rgba(242, 54, 69, 0.6);
+            border-radius: 4px;
+            padding: 1px 6px;
+            height: 19px;
+            box-sizing: border-box;
             color: #fca5a5;
+            font-size: 10px;
             font-weight: 700;
+            cursor: ns-resize;
             pointer-events: auto;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
             z-index: 10;
             user-select: none;
           `;
+          slBadge.title = 'Drag to adjust Stop Loss';
 
           slBadge.innerHTML = `
-            <span class="omni-drag-handle" title="Drag to adjust Stop Loss" style="cursor: ns-resize; padding: 1px 4px; background: rgba(242, 54, 69, 0.15); border-radius: 3px; font-size: 10px; color: #fca5a5;">⇕ Drag</span>
-            <span class="sl-label-text">SL: ${pos.stopLoss.toFixed(priceDecimals)} (-$${slPnlEst.toFixed(2)})</span>
-            <button type="button" class="btn-remove-sl" title="Remove Stop Loss" style="background:none; border:none; color:var(--vela-fg-muted, #8b98a5); cursor:pointer; font-size:11px; padding:0 2px;">✕</button>
+            <span class="omni-drag-handle sl-label-text" style="font-family:monospace; line-height:1.2;">SL -$${slPnlEst.toFixed(2)}</span>
+            <button type="button" class="btn-remove-sl" title="Remove Stop Loss" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size:10px; padding:0 1px; line-height:1; transition:color 0.15s ease;">✕</button>
           `;
 
-          // Wire remove SL
-          slBadge.querySelector('.btn-remove-sl')?.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            try {
-              const registry = BrokerRegistry.getInstance();
-              await registry.modifyPosition({ positionId: pos.id, stopLoss: undefined });
-              this.toast('Stop Loss removed.');
-              this.refreshPositions();
-            } catch (err: any) {
-              this.toast(`❌ Failed: ${err.message}`);
-            }
-          });
-
-          // Wire drag handle for SL
-          const dragHandle = slBadge.querySelector('.omni-drag-handle') as HTMLElement;
-          if (dragHandle) {
-            this.setupBracketDrag(dragHandle, 'sl', pos, slLine, slBadge, priceDecimals);
+          const removeSlBtn = slBadge.querySelector('.btn-remove-sl') as HTMLElement | null;
+          if (removeSlBtn) {
+            removeSlBtn.addEventListener('mouseenter', () => {
+              removeSlBtn.style.color = '#f87171';
+            });
+            removeSlBtn.addEventListener('mouseleave', () => {
+              removeSlBtn.style.color = '#94a3b8';
+            });
+            removeSlBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              try {
+                const registry = BrokerRegistry.getInstance();
+                await registry.modifyPosition({ positionId: pos.id, stopLoss: undefined });
+                this.toast('Stop Loss removed.');
+                this.refreshPositions();
+              } catch (err: any) {
+                this.toast(`❌ Failed: ${err.message}`);
+              }
+            });
           }
+
+          // Wire drag directly on slBadge
+          this.setupBracketDrag(slBadge, 'sl', pos, slLine, slBadge, priceDecimals);
 
           this.badgesContainer.appendChild(slBadge);
         }
@@ -746,7 +781,7 @@ export class ChartPositionsOverlay {
 
         const labelText = badgeEl.querySelector(`.${type}-label-text`);
         if (labelText) {
-          labelText.textContent = `${type.toUpperCase()}: ${roundedPrice.toFixed(decimals)} (${sign}$${estPnl.toFixed(2)})`;
+          labelText.textContent = `${type.toUpperCase()} ${sign}$${estPnl.toFixed(2)}`;
         }
 
         // Update tooltip

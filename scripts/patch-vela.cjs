@@ -1168,6 +1168,18 @@ for (const file of files) {
       });
       body.append(snapRow);
       attachSub(snapRow, "Visible on all devices without synchronization");
+
+      // 14. Bid and ask lines (Spread)
+      const spreadRow = this.boolRow("Bid and ask lines (Spread)", window.__spreadVisualizer ? window.__spreadVisualizer.isVisible() : (localStorage.getItem("omni-spread-visible") !== "false"), (v) => {
+        if (window.__spreadVisualizer) {
+          window.__spreadVisualizer.setVisible(v);
+        } else {
+          localStorage.setItem("omni-spread-visible", String(v));
+          window.dispatchEvent(new CustomEvent("vela:spread-visibility-updated", { detail: { visible: v } }));
+        }
+      });
+      body.append(spreadRow);
+      attachSub(spreadRow, "Display real-time bid and ask spread lines on chart");
     } catch (e) {}
 
     // Alerts Section
@@ -1368,6 +1380,29 @@ for (const file of files) {
   const replTextOnBarColor = `if (paths.has("text.color"))`;
   if (content.includes(targetTextOnBarColor)) {
     content = content.replaceAll(targetTextOnBarColor, replTextOnBarColor);
+    modified = true;
+  }
+
+  // 24. Chart Settings: Scales & Lines - Bid and ask lines (Spread)
+  const targetLastPriceLineRegex = /(body\.append\(sid\(this\.boolRow\(\w+\.lastPriceLine[\s\S]*?"scales\.price-scale\.last-price-line"\)\);)/;
+  if (!content.includes('"scales.price-scale.spread-lines"') && content.match(targetLastPriceLineRegex)) {
+    content = content.replace(targetLastPriceLineRegex, `$1
+    body.append(sid(this.boolRow("Bid and ask lines (Spread)", window.__spreadVisualizer ? window.__spreadVisualizer.isVisible() : (localStorage.getItem("omni-spread-visible") !== "false"), (v) => {
+      if (window.__spreadVisualizer) {
+        window.__spreadVisualizer.setVisible(v);
+      } else {
+        localStorage.setItem("omni-spread-visible", String(v));
+        window.dispatchEvent(new CustomEvent("vela:spread-visibility-updated", { detail: { visible: v } }));
+      }
+    }), "scales.price-scale.spread-lines"));`);
+    modified = true;
+  }
+
+  // 25. Chart Settings: Trading Section - Bid and ask lines (Spread)
+  const targetSnapRow = `body.append(snapRow);\n      attachSub(snapRow, "Visible on all devices without synchronization");`;
+  const replSnapRowWithSpread = `body.append(snapRow);\n      attachSub(snapRow, "Visible on all devices without synchronization");\n\n      // 14. Bid and ask lines (Spread)\n      const spreadRow = this.boolRow("Bid and ask lines (Spread)", window.__spreadVisualizer ? window.__spreadVisualizer.isVisible() : (localStorage.getItem("omni-spread-visible") !== "false"), (v) => {\n        if (window.__spreadVisualizer) {\n          window.__spreadVisualizer.setVisible(v);\n        } else {\n          localStorage.setItem("omni-spread-visible", String(v));\n          window.dispatchEvent(new CustomEvent("vela:spread-visibility-updated", { detail: { visible: v } }));\n        }\n      });\n      body.append(spreadRow);\n      attachSub(spreadRow, "Display real-time bid and ask spread lines on chart");`;
+  if (content.includes(targetSnapRow) && !content.includes('Display real-time bid and ask spread lines on chart')) {
+    content = content.replace(targetSnapRow, replSnapRowWithSpread);
     modified = true;
   }
 

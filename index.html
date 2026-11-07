@@ -46,17 +46,17 @@
       /* ---- Cell Corner Controls Bar & Close Button ---- */
       .vela-cell-corner-controls {
         position: absolute;
-        top: 6px;
+        top: 8px;
         right: 68px; /* Offset from price scale gutter so it never covers price axis */
         z-index: 50;
         display: inline-flex;
         align-items: center;
-        gap: 3px;
-        background: rgba(18, 22, 28, 0.92);
-        backdrop-filter: blur(10px);
-        border: 1px solid var(--vela-border, #263039);
+        gap: 4px;
+        background: rgba(20, 24, 33, 0.95);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.16);
         border-radius: 6px;
-        padding: 2px 4px;
+        padding: 2px 6px;
         height: 26px;
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
         user-select: none;
@@ -64,8 +64,8 @@
       .vela-corner-sep {
         width: 1px;
         height: 14px;
-        background: var(--vela-border, #263039);
-        margin: 0 2px;
+        background: rgba(255, 255, 255, 0.18);
+        margin: 0 3px;
       }
       .vela-corner-btn {
         display: inline-flex;
@@ -76,7 +76,7 @@
         border-radius: 4px;
         background: transparent;
         border: none;
-        color: var(--vela-fg-muted, #8b98a5);
+        color: #e2e8f0;
         cursor: pointer;
         font-size: 13px;
         font-weight: 700;
@@ -85,15 +85,21 @@
         padding: 0;
       }
       .vela-corner-btn:hover {
-        background: rgba(255, 255, 255, 0.08);
-        color: var(--vela-fg-bright, #f8fafc);
+        background: rgba(255, 255, 255, 0.14);
+        color: #ffffff;
+      }
+      .vela-corner-btn.add-btn {
+        color: #e2e8f0;
       }
       .vela-corner-btn.add-btn:hover {
-        background: rgba(8, 153, 129, 0.2);
-        color: var(--vela-accent, #22d3a5);
+        background: rgba(8, 153, 129, 0.25);
+        color: #22d3a5;
+      }
+      .vela-corner-btn.close-btn {
+        color: #e2e8f0;
       }
       .vela-corner-btn.close-btn:hover {
-        background: rgba(242, 54, 69, 0.2);
+        background: rgba(242, 54, 69, 0.25);
         color: #f87171;
       }
 
@@ -106,11 +112,12 @@
         border-radius: 4px;
         cursor: pointer;
         transition: all 0.15s ease;
-        border: 1px solid var(--vela-border, #263039);
-        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.08);
         padding: 2px 6px;
         user-select: none;
         height: 20px;
+        color: #e2e8f0;
       }
       .omni-link-badge-statusline {
         height: 20px;
@@ -122,28 +129,13 @@
         padding: 0 5px;
       }
       .omni-link-badge:hover {
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.16);
         border-color: var(--vela-accent, #22d3a5) !important;
+        color: #ffffff;
       }
       .omni-link-dot {
         width: 7px;
         height: 7px;
-        border-radius: 50%;
-        display: inline-block;
-        flex-shrink: 0;
-      }
-      .omni-link-svg {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 12px;
-        height: 12px;
-      }
-      .omni-link-svg svg {
-        width: 12px;
-        height: 12px;
-        display: block;
-      }
         border-radius: 50%;
         display: inline-block;
         flex-shrink: 0;

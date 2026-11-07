@@ -172,4 +172,53 @@ describe('New Fixes Verification Suite', () => {
     assert.ok(code.includes('#089981'), 'Bid line must be emerald #089981');
     assert.ok(code.includes('#f23645'), 'Ask line must be red #f23645');
   });
+
+  test('10. Trade Manager Expand / Collapse Toggle & State Management', () => {
+    const tradingPanelPath = path.resolve('src/ui/tradingPanel.ts');
+    const code = fs.readFileSync(tradingPanelPath, 'utf8');
+
+    assert.ok(code.includes('omni-trade-panel-expanded'), 'Must persist expanded state in localStorage');
+    assert.ok(code.includes('dataset.collapsed'), 'Must track collapsed state on panel DOM element');
+    assert.ok(code.includes('omni-panel-docked-header'), 'Header bar must support 1-click toggle when collapsed');
+    assert.ok(code.includes("this.resizerEl.style.display = this.isExpanded ? 'flex' : 'none'"), 'Resizer handle must hide when collapsed');
+  });
+
+  test('11. Spread Chart Settings Integration & Clean Line Rendering', () => {
+    const patchPath = path.resolve('scripts/patch-vela.cjs');
+    const patchCode = fs.readFileSync(patchPath, 'utf8');
+    assert.ok(patchCode.includes('scales.price-scale.spread-lines'), 'Chart settings Scales & Lines must include spread lines toggle');
+    assert.ok(patchCode.includes('Display real-time bid and ask spread lines on chart'), 'Trading settings must include spread lines option');
+
+    const spreadPath = path.resolve('src/spread.ts');
+    const spreadCode = fs.readFileSync(spreadPath, 'utf8');
+    assert.ok(spreadCode.includes('setVisible'), 'SpreadVisualizer must implement setVisible for settings toggle');
+    assert.ok(spreadCode.includes('isVisible'), 'SpreadVisualizer must implement isVisible for settings retrieval');
+    assert.ok(!spreadCode.includes('omni-spread-diff-badge'), 'Intrusive spread diff badge must be removed from chart overlay');
+
+    const mainPath = path.resolve('src/main.ts');
+    const mainCode = fs.readFileSync(mainPath, 'utf8');
+    assert.ok(mainCode.includes('__spreadVisualizer = spreadVisualizer'), 'Must expose spread visualizer on window');
+  });
+
+  test('12. Discreet Position Overlays on Chart (TradingView / cTrader style)', () => {
+    const overlayPath = path.resolve('src/ui/chartPositionsOverlay.ts');
+    const code = fs.readFileSync(overlayPath, 'utf8');
+
+    assert.ok(code.includes('height: 20px;'), 'Position badge must be compact 20px discreet pill');
+    assert.ok(code.includes('left: 20px;'), 'Position badge must be cleanly offset from edge');
+    assert.ok(code.includes('btn-close-pos'), 'Must provide sleek close button');
+    assert.ok(!code.includes('@ ${pos.entryPrice'), 'Redundant entry price text must be omitted from badge for discreet focus');
+  });
+
+  test('13. Corner Controls Bar High-Contrast Visibility', () => {
+    const htmlPath = path.resolve('index.html');
+    const htmlCode = fs.readFileSync(htmlPath, 'utf8');
+
+    assert.ok(htmlCode.includes('.vela-corner-btn'), 'Must style corner buttons');
+    assert.ok(htmlCode.includes('color: #e2e8f0;'), 'Corner buttons must use high-contrast bright text color #e2e8f0');
+
+    const colorLinkPath = path.resolve('src/colorLink.ts');
+    const linkCode = fs.readFileSync(colorLinkPath, 'utf8');
+    assert.ok(linkCode.includes('opacity:0.95'), 'Group dot must be clearly visible and not faded');
+  });
 });

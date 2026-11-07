@@ -26,6 +26,8 @@ function escapeHtml(t: string): string {
 
 export class TradingPanel {
   private panelEl: HTMLElement | null = null;
+  private resizerEl: HTMLElement | null = null;
+  private contentEl: HTMLElement | null = null;
   private isExpanded: boolean = true;
   private activeTab: 'positions' | 'history' | 'analytics' = 'positions';
   private positions: Position[] = [];
@@ -65,6 +67,13 @@ export class TradingPanel {
     const existing = document.getElementById('omni-bottom-trading-panel');
     if (existing) existing.remove();
 
+    try {
+      const savedExpanded = localStorage.getItem('omni-trade-panel-expanded');
+      if (savedExpanded !== null) {
+        this.isExpanded = savedExpanded === 'true';
+      }
+    } catch {}
+
     const panel = document.createElement('div');
     panel.id = 'omni-bottom-trading-panel';
     panel.className = 'omni-trading-panel';
@@ -82,6 +91,7 @@ export class TradingPanel {
       font-family: Inter, ui-sans-serif, system-ui, sans-serif;
       user-select: none;
       transition: height 0.2s ease;
+      overflow: hidden;
     `;
 
     // Resizer handle at top edge
@@ -96,7 +106,7 @@ export class TradingPanel {
       cursor: ns-resize;
       z-index: 50;
       background: transparent;
-      display: flex;
+      display: ${this.isExpanded ? 'flex' : 'none'};
       justify-content: center;
       align-items: center;
     `;
@@ -124,6 +134,14 @@ export class TradingPanel {
 
     resizer.addEventListener('pointerdown', this.onResizerPointerDown);
     panel.appendChild(resizer);
+    this.resizerEl = resizer;
+
+    // Dedicated inner content container
+    const content = document.createElement('div');
+    content.className = 'omni-panel-inner';
+    content.style.cssText = 'display:flex; flex-direction:column; height:100%; width:100%; overflow:hidden;';
+    panel.appendChild(content);
+    this.contentEl = content;
 
     document.body.appendChild(panel);
     this.panelEl = panel;
@@ -145,6 +163,19 @@ export class TradingPanel {
     }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('resize'));
+    }
+    if (animate) {
+      setTimeout(() => {
+        const wsLater = this.getWorkspace();
+        if (wsLater) {
+          try {
+            wsLater.resize();
+          } catch {}
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('resize'));
+        }
+      }, 220);
     }
   }
 
@@ -246,12 +277,23 @@ export class TradingPanel {
 
   public toggle(): void {
     this.isExpanded = !this.isExpanded;
-    this.syncWorkspaceOffset(this.isExpanded ? this.preferredHeight : 36, true);
+    try {
+      localStorage.setItem('omni-trade-panel-expanded', String(this.isExpanded));
+    } catch {}
+    const currentH = this.isExpanded ? this.preferredHeight : 36;
+    if (this.panelEl) {
+      this.panelEl.style.height = `${currentH}px`;
+      this.panelEl.dataset.collapsed = String(!this.isExpanded);
+    }
+    if (this.resizerEl) {
+      this.resizerEl.style.display = this.isExpanded ? 'flex' : 'none';
+    }
+    this.syncWorkspaceOffset(currentH, true);
     this.render();
   }
 
   private render(): void {
-    if (!this.panelEl) return;
+    if (!this.panelEl || !this.contentEl) return;
 
     const registry = BrokerRegistry.getInstance();
     const adapter = registry.getActiveAdapter();
@@ -276,11 +318,18 @@ export class TradingPanel {
     const posCount = this.positions.length;
     const histCount = this.history.length;
 
-    // Fast-path for collapsed bar: update numbers in-place without rebuilding DOM
-    if (!this.isExpanded) {
-      const pnlEl = this.panelEl.querySelector('.omni-panel-unrealized-pnl') as HTMLElement | null;
-      const eqEl = this.panelEl.querySelector('.omni-panel-equity-val') as HTMLElement | null;
-      const balEl = this.panelEl.querySelector('.omni-panel-balance-val') as HTMLElement | null;
+    const currentH = this.isExpanded ? this.preferredHeight : 36;
+    this.panelEl.style.height = `${currentH}px`;
+    this.panelEl.dataset.collapsed = String(!this.isExpanded);
+    if (this.resizerEl) {
+      this.resizerEl.style.display = this.isExpanded ? 'flex' : 'none';
+    }
+
+    // Fast-path: only when DOM is ALREADY collapsed and updating tick numbers
+    if (!this.isExpanded && !this.contentEl.querySelector('.omni-panel-body')) {
+      const pnlEl = this.contentEl.querySelector('.omni-panel-unrealized-pnl') as HTMLElement | null;
+      const eqEl = this.contentEl.querySelector('.omni-panel-equity-val') as HTMLElement | null;
+      const balEl = this.contentEl.querySelector('.omni-panel-balance-val') as HTMLElement | null;
       if (pnlEl && eqEl && balEl) {
         pnlEl.textContent = pnlFormatted;
         pnlEl.style.color = pnlColor;
@@ -291,19 +340,15 @@ export class TradingPanel {
       }
     }
 
-    const currentH = this.isExpanded ? this.preferredHeight : 36;
-    this.panelEl.style.height = `${currentH}px`;
-    this.syncWorkspaceOffset(currentH, true);
-
-    this.panelEl.innerHTML = `
+    this.contentEl.innerHTML = `
       <!-- Docked Header Bar -->
-      <div style="height: 36px; min-height: 36px; padding: 0 16px; background: var(--vela-surface, #12161c); border-bottom: ${this.isExpanded ? '1px solid var(--vela-border, #263039)' : 'none'}; display: flex; align-items: center; justify-content: space-between;">
+      <div class="omni-panel-docked-header" style="height: 36px; min-height: 36px; padding: 0 16px; background: var(--vela-surface, #12161c); border-bottom: ${this.isExpanded ? '1px solid var(--vela-border, #263039)' : 'none'}; display: flex; align-items: center; justify-content: space-between; cursor: ${this.isExpanded ? 'default' : 'pointer'};">
         
         <!-- Left: Title, Account, Tabs -->
         <div style="display: flex; align-items: center; gap: 14px;">
           <!-- Expand/Collapse Button -->
-          <button type="button" class="btn-toggle-expand" style="background: none; border: none; color: var(--vela-fg-muted, #8b98a5); cursor: pointer; font-size: 13px; padding: 2px 6px; display: flex; align-items: center; gap: 4px;">
-            <span>${this.isExpanded ? '▼' : '▲'}</span>
+          <button type="button" class="btn-toggle-expand" title="${this.isExpanded ? 'Collapse Trade Manager' : 'Expand Trade Manager'}" style="background: none; border: none; color: var(--vela-fg-muted, #8b98a5); cursor: pointer; font-size: 13px; padding: 2px 6px; display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 11px; color: var(--vela-accent, #22d3a5);">${this.isExpanded ? '▼' : '▲'}</span>
             <strong style="color: var(--vela-fg-bright, #f8fafc); font-size: 12px; letter-spacing: 0.3px;">TRADE MANAGER</strong>
           </button>
 
@@ -372,10 +417,23 @@ export class TradingPanel {
     `;
 
     // Wire events
-    this.panelEl.querySelector('.btn-toggle-expand')?.addEventListener('click', () => this.toggle());
+    const toggleBtn = this.contentEl.querySelector('.btn-toggle-expand');
+    toggleBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggle();
+    });
 
-    this.panelEl.querySelectorAll('.tab-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
+    const headerBar = this.contentEl.querySelector('.omni-panel-docked-header');
+    headerBar?.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (!this.isExpanded && !target.closest('button') && !target.closest('.btn-close-all')) {
+        this.toggle();
+      }
+    });
+
+    this.contentEl.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const tab = btn.getAttribute('data-tab') as any;
         if (tab) {
           this.activeTab = tab;
@@ -384,7 +442,8 @@ export class TradingPanel {
       });
     });
 
-    this.panelEl.querySelector('.btn-close-all')?.addEventListener('click', async () => {
+    this.contentEl.querySelector('.btn-close-all')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
       if (confirm(`Are you sure you want to CLOSE ALL ${posCount} open positions at market price?`)) {
         try {
           await registry.closeAllPositions();

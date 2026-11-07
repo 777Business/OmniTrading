@@ -121,6 +121,16 @@ export class SpreadVisualizer {
     window.addEventListener('vela:toggle-spread', onToggle);
     this.unsubs.push(() => window.removeEventListener('vela:toggle-spread', onToggle));
 
+    // Listen for visibility updates from Chart Settings
+    const onVisUpdate = (e: any) => {
+      const vis = e.detail?.visible;
+      if (typeof vis === 'boolean') {
+        this.setVisible(vis);
+      }
+    };
+    window.addEventListener('vela:spread-visibility-updated', onVisUpdate);
+    this.unsubs.push(() => window.removeEventListener('vela:spread-visibility-updated', onVisUpdate));
+
     // Listen for window resize
     const onResize = () => {
       if (this.enabled) this.renderThrottled();
@@ -206,33 +216,42 @@ export class SpreadVisualizer {
     this.isFetchingQuote = false;
   }
 
-  public toggle(): void {
-    this.enabled = !this.enabled;
-    try {
-      localStorage.setItem(PREF_KEY, String(this.enabled));
-    } catch {
-      /* ignore */
-    }
+  public isVisible(): boolean {
+    return this.enabled;
+  }
 
-    // Sync side menu button appearance using Vela native accent
-    const sideBtn = document.querySelector('.vela-dtb-spread-btn') as HTMLElement | null;
-    if (sideBtn) {
-      sideBtn.style.color = this.enabled ? 'var(--vela-accent, #22d3a5)' : '';
-      sideBtn.style.background = this.enabled ? 'rgba(34, 211, 165, 0.12)' : '';
-      sideBtn.dataset.selected = this.enabled ? '1' : '0';
-    }
-
-    this.updateChip();
-
-    if (this.enabled) {
-      this.ensureOverlay();
-      if (!this.lastTick && this.activeCell?.symbol) {
-        this.fetchInitialQuote(this.activeCell.symbol);
+  public setVisible(val: boolean): void {
+    if (this.enabled !== val) {
+      this.enabled = val;
+      try {
+        localStorage.setItem(PREF_KEY, String(this.enabled));
+      } catch {
+        /* ignore */
       }
-      this.render();
-    } else {
-      this.hideLines();
+
+      const sideBtn = document.querySelector('.vela-dtb-spread-btn') as HTMLElement | null;
+      if (sideBtn) {
+        sideBtn.style.color = this.enabled ? 'var(--vela-accent, #22d3a5)' : '';
+        sideBtn.style.background = this.enabled ? 'rgba(34, 211, 165, 0.12)' : '';
+        sideBtn.dataset.selected = this.enabled ? '1' : '0';
+      }
+
+      this.updateChip();
+
+      if (this.enabled) {
+        this.ensureOverlay();
+        if (!this.lastTick && this.activeCell?.symbol) {
+          this.fetchInitialQuote(this.activeCell.symbol);
+        }
+        this.render();
+      } else {
+        this.hideLines();
+      }
     }
+  }
+
+  public toggle(): void {
+    this.setVisible(!this.enabled);
   }
 
   private updateChip(): void {
@@ -364,36 +383,14 @@ export class SpreadVisualizer {
         font-family: monospace;
       `;
 
-      // Spread diff badge floating before the price axis
-      const spreadLabel = document.createElement('div');
-      spreadLabel.className = 'omni-spread-diff-badge';
-      spreadLabel.style.cssText = `
-        position: absolute;
-        right: 76px;
-        transform: translateY(-50%);
-        background: var(--vela-surface-elev, #1a1d24);
-        border: 1px solid var(--vela-accent, #22d3a5);
-        color: var(--vela-accent, #22d3a5);
-        font-size: 9.5px;
-        font-weight: 700;
-        padding: 1px 6px;
-        border-radius: 10px;
-        pointer-events: none;
-        z-index: 6;
-        display: none;
-        letter-spacing: 0.3px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.6);
-      `;
-
       host.appendChild(svg);
       host.appendChild(askLabel);
       host.appendChild(bidLabel);
-      host.appendChild(spreadLabel);
 
       this.overlaySvg = svg;
       this.askLabel = askLabel;
       this.bidLabel = bidLabel;
-      this.spreadLabel = spreadLabel;
+      this.spreadLabel = null;
     }
   }
 
@@ -514,7 +511,7 @@ export class SpreadVisualizer {
       this.bidLine.style.display = 'block';
     }
 
-    if (this.askLabel && this.bidLabel && this.spreadLabel) {
+    if (this.askLabel && this.bidLabel) {
       this.askLabel.textContent = `Ask ${ask.toFixed(digits)}`;
       this.askLabel.style.top = `${yAsk}px`;
       this.askLabel.style.display = 'block';
@@ -522,11 +519,6 @@ export class SpreadVisualizer {
       this.bidLabel.textContent = `Bid ${bid.toFixed(digits)}`;
       this.bidLabel.style.top = `${yBid}px`;
       this.bidLabel.style.display = 'block';
-
-      const midY = (yAsk + yBid) / 2;
-      this.spreadLabel.textContent = `Spread ${spreadPips} pips`;
-      this.spreadLabel.style.top = `${midY}px`;
-      this.spreadLabel.style.display = 'block';
     }
   }
 
