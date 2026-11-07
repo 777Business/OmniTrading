@@ -11,10 +11,11 @@ OmniTrading is an open-source, broker-neutral trading desktop application. It co
 
 ---
 
-<!-- TODO for repository owner: Add your hero animation GIF or application screenshot below -->
 <div align="center">
-  <img src="omni-icon.svg" width="128" height="128" alt="OmniTrading Logo" />
-  <p><em>[TODO: Insert hero GIF demo showing multi-chart grid and execution here]</em></p>
+  <img src="omni-icon.svg" width="96" height="96" alt="OmniTrading Logo" />
+  <br /><br />
+  <img src="docs/images/omni-trading-4charts.png" alt="OmniTrading 4-Chart Grid View" style="max-width: 100%; border-radius: 8px;" />
+  <p><em>OmniTrading v0.1.0 — Multi-chart grid layout with instant Paper Trading, navigation tools, and execution controls</em></p>
 </div>
 
 ---
@@ -33,7 +34,7 @@ OmniTrading is an open-source, broker-neutral trading desktop application. It co
   - Multi-chart cell grids (1, 2, 3, 4 splits, sync crosshairs, color linking).
   - Floating Quick Trade widget with live pip distance calculation.
   - Customizable color palettes (Dracula, Tokyo Night, Catppuccin, Nord, Obsidian Monochrome).
-  - 32 royalty-free audio alerts (nature, voices, bell, chimes).
+  - Synthesized Web Audio alerts (arpeggios, chimes, confirmation beeps) with zero external asset dependencies.
   - Bar Replay with step controls and variable speeds.
 - **🔒 Local & Private**: All API keys, secrets, and layouts are stored exclusively on your device. Zero telemetry.
 - **🧩 Pluggable Indicators**: Drop custom Pine Script or TypeScript indicators into `custom-indicators/` without exposing your private strategies to Git.
