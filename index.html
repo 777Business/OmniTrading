@@ -48,7 +48,7 @@
         position: absolute;
         top: 8px;
         right: 68px; /* Offset from price scale gutter so it never covers price axis */
-        z-index: 50;
+        z-index: 15; /* Subordinated below Vela modal dialogs and menus */
         display: inline-flex;
         align-items: center;
         gap: 4px;
@@ -657,41 +657,46 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        height: 24px;
-        padding: 0 10px;
-        border: 1px solid #1e293b;
-        border-radius: 9999px;
-        background: rgba(14, 18, 24, 0.88);
-        backdrop-filter: blur(8px);
-        color: var(--ct-text);
+        height: 26px;
+        line-height: 26px;
+        padding: 0 8px;
+        border: 1px solid var(--vela-border, #2a2b30);
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--vela-fg, #d1d4dc);
         font: inherit;
         font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
+        font-weight: 500;
         cursor: pointer;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
         user-select: none;
+        white-space: nowrap !important;
+        box-sizing: border-box;
+        flex: none;
         transition: all 0.15s ease;
         margin-inline-end: 4px;
         position: relative;
         z-index: 10;
       }
       .vela-topbar-spread-chip:hover {
-        border-color: var(--vela-accent, #22d3a5);
+        background: var(--vela-hover, rgba(255, 255, 255, 0.06));
+        border-color: rgba(255, 255, 255, 0.16);
       }
       .vela-topbar-spread-chip .vela-spread-dot {
         display: inline-block;
         width: 6px;
         height: 6px;
         border-radius: 50%;
+        flex: none;
         transition: all 0.15s ease;
       }
       .vela-topbar-spread-chip .vela-spread-status-tag {
-        font-size: 9px;
-        font-weight: 700;
+        font-size: 9.5px;
+        font-weight: 600;
         padding: 1px 4px;
         border-radius: 3px;
-        letter-spacing: 0.02em;
+        letter-spacing: 0.03em;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--vela-fg-muted, #868a96);
       }
 
       /* ---- Alerts Modal Styles ---- */
@@ -866,7 +871,7 @@
         position: absolute;
         top: 14px;
         right: 80px;
-        z-index: 55;
+        z-index: 15; /* Sits below modal dialogs and menus */
         display: flex;
         align-items: center;
         gap: 6px;
@@ -974,7 +979,7 @@
         position: absolute;
         top: 6px;
         left: 94px;
-        z-index: 50;
+        z-index: 15; /* Subordinated below Vela modal dialogs and menus */
         background: rgba(19, 23, 34, 0.94);
         backdrop-filter: blur(8px);
         border: 1px solid rgba(255, 255, 255, 0.12);
@@ -983,6 +988,45 @@
         font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
         overflow: hidden;
         user-select: none;
+      }
+
+      /* ---- Vela Modal Dialogs & Menus Layering Invariant ---- */
+      :root {
+        --vela-z-dialog: 1000 !important;
+        --vela-z-menu: 1100 !important;
+        --vela-z-popover: 6000 !important;
+      }
+      .vela-dialog,
+      .vela-dialog-backdrop,
+      .vela-dialog-positioner,
+      .vela-settings-dialog,
+      .vela-ind-dialog,
+      [data-slot='dialog-positioner'],
+      [data-slot='dialog-backdrop'],
+      .vela-ui-layer {
+        z-index: 1000 !important;
+      }
+      .vela-menu,
+      .vela-menu-positioner,
+      [data-slot='menu-positioner'],
+      [data-slot='menu-content'] {
+        z-index: 1100 !important;
+      }
+      .vela-popover,
+      .vela-popover-positioner,
+      [data-slot='popover-positioner'],
+      [data-slot='popover-content'] {
+        z-index: 1200 !important;
+      }
+
+      /* Yield floating widgets when a settings dialog or modal is open */
+      .vela-cell:has([data-slot='dialog-positioner']:not([style*="display: none"])) .vela-cell-corner-controls,
+      .vela-cell:has([data-slot='dialog-positioner']:not([style*="display: none"])) .omni-quick-trade-widget,
+      .vela-cell:has(.vela-dialog:not([hidden])) .vela-cell-corner-controls,
+      .vela-cell:has(.vela-dialog:not([hidden])) .omni-quick-trade-widget,
+      body:has(.vela-dialog:not([hidden])) .omni-quick-trade-widget {
+        pointer-events: none !important;
+        opacity: 0.25 !important;
       }
       .omni-qt-bar {
         display: flex;

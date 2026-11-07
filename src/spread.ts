@@ -154,10 +154,10 @@ export class SpreadVisualizer {
     // Listen for cell viewport change to keep spread lines aligned with price axis
     try {
       cell.chart?.on?.('viewport:changed', () => {
-        if (this.enabled) this.renderThrottled();
+        if (this.enabled) this.render();
       });
-      cell.chart?.on?.('render', () => {
-        if (this.enabled) this.renderThrottled();
+      cell.chart?.on?.('pane:changed', () => {
+        if (this.enabled) this.render();
       });
       cell.chart?.on?.('market:changed', () => {
         if (cell.symbol) this.fetchInitialQuote(cell.symbol);
@@ -166,12 +166,39 @@ export class SpreadVisualizer {
       /* ignore */
     }
 
+    this.hookRenderer(cell);
     this.ensureOverlay();
     if (cell.symbol) {
       this.fetchInitialQuote(cell.symbol);
     }
     if (this.enabled) {
       this.render();
+    }
+  }
+
+  private hookRenderer(cell: any): void {
+    const chart = cell?.chart;
+    if (!chart) return;
+    const renderer = (chart as any).rendererPort ?? (chart as any).orchestrator?.renderer ?? (chart as any).renderer;
+    if (!renderer || (renderer as any)._omniSpreadHooked) return;
+    (renderer as any)._omniSpreadHooked = true;
+
+    const origRenderFrame = renderer.renderFrame;
+    if (typeof origRenderFrame === 'function') {
+      renderer.renderFrame = (...args: any[]) => {
+        const out = origRenderFrame.apply(renderer, args);
+        if (this.enabled) this.render();
+        return out;
+      };
+    }
+
+    const origAnimTick = renderer.animTick;
+    if (typeof origAnimTick === 'function') {
+      renderer.animTick = (...args: any[]) => {
+        const out = origAnimTick.apply(renderer, args);
+        if (this.enabled) this.render();
+        return out;
+      };
     }
   }
 
@@ -259,18 +286,16 @@ export class SpreadVisualizer {
     if (!this.enabled) {
       this.pill.innerHTML = `
         <span class="vela-spread-dot" style="background:#64748b;"></span>
-        <span style="color:var(--vela-fg-muted, #8b98a5); font-size:11px;">Spread: Off</span>
+        <span style="color:var(--vela-fg-muted, #868a96); font-size:11px;">Spread: Off</span>
       `;
-      this.pill.style.borderColor = 'var(--vela-border, #263039)';
       return;
     }
 
     if (!this.lastTick) {
       this.pill.innerHTML = `
         <span class="vela-spread-dot" style="background:var(--vela-accent, #22d3a5);"></span>
-        <span style="color:var(--vela-fg-bright, #f8fafc); font-size:11px;">Spread: Waiting…</span>
+        <span style="color:var(--vela-fg-muted, #868a96); font-size:11px;">Spread: Waiting…</span>
       `;
-      this.pill.style.borderColor = 'var(--vela-accent, #22d3a5)';
       return;
     }
 
@@ -282,12 +307,10 @@ export class SpreadVisualizer {
 
     this.pill.innerHTML = `
       <span class="vela-spread-dot" style="background:#089981;"></span>
-      <span style="color:var(--vela-fg-bright, #f8fafc); font-size:11px; font-weight:600;">
-        Spread: <strong style="color:var(--vela-accent, #22d3a5);">${spreadPips}</strong> pips
-      </span>
-      <span class="vela-spread-status-tag" style="background:rgba(8,153,129,0.18); color:#22d3a5; font-size:9px; font-weight:700; padding:1px 4px; border-radius:3px; margin-left:2px;">LIVE</span>
+      <span style="color:var(--vela-fg-muted, #868a96); font-size:11px;">Spread</span>
+      <span style="color:var(--vela-fg-bright, #f0f3fa); font-size:11px; font-weight:600; font-family:monospace;">${spreadPips} pips</span>
+      <span class="vela-spread-status-tag">LIVE</span>
     `;
-    this.pill.style.borderColor = 'var(--vela-accent, #22d3a5)';
   }
 
   private ensureOverlay(): void {

@@ -983,19 +983,48 @@ function updateKillSwitchUI(): void {
   killSwitchBtn.style.cssText = `
     all: unset;
     cursor: pointer;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 8px;
+    box-sizing: border-box;
+    height: 26px;
+    line-height: 26px;
+    padding: 0 8px;
     border-radius: 4px;
-    margin-right: 6px;
-    background: ${isKillSwitchActive ? 'rgba(239, 68, 68, 0.25)' : 'rgba(34, 197, 94, 0.15)'};
-    color: ${isKillSwitchActive ? '#fca5a5' : '#86efac'};
-    border: 1px solid ${isKillSwitchActive ? '#ef4444' : '#22c55e'};
+    margin-right: 4px;
+    background: ${isKillSwitchActive ? 'rgba(242, 54, 69, 0.12)' : 'rgba(255, 255, 255, 0.03)'};
+    color: ${isKillSwitchActive ? '#fca5a5' : 'var(--vela-fg, #d1d4dc)'};
+    border: 1px solid ${isKillSwitchActive ? 'rgba(242, 54, 69, 0.4)' : 'var(--vela-border, #2a2b30)'};
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 500;
+    transition: all 0.15s ease;
+    user-select: none;
+    flex: none;
   `;
-  killSwitchBtn.innerHTML = `<span>${isKillSwitchActive ? '🛑' : '🛡️'}</span><span>${isKillSwitchActive ? 'KILL SWITCH ON' : 'TRADING ACTIVE'}</span>`;
+  killSwitchBtn.onmouseenter = () => {
+    killSwitchBtn!.style.background = isKillSwitchActive ? 'rgba(242, 54, 69, 0.18)' : 'var(--vela-hover, rgba(255, 255, 255, 0.06))';
+    killSwitchBtn!.style.borderColor = isKillSwitchActive ? 'rgba(242, 54, 69, 0.6)' : 'rgba(255, 255, 255, 0.16)';
+  };
+  killSwitchBtn.onmouseleave = () => {
+    killSwitchBtn!.style.background = isKillSwitchActive ? 'rgba(242, 54, 69, 0.12)' : 'rgba(255, 255, 255, 0.03)';
+    killSwitchBtn!.style.borderColor = isKillSwitchActive ? 'rgba(242, 54, 69, 0.4)' : 'var(--vela-border, #2a2b30)';
+  };
+
+  if (isKillSwitchActive) {
+    killSwitchBtn.innerHTML = `
+      <span style="width:6px; height:6px; border-radius:50%; background:#f23645; display:inline-block; flex:none;"></span>
+      <span style="color:#f87171; font-weight:600;">Kill Switch Active</span>
+    `;
+    killSwitchBtn.title = 'Trading is HALTED by Kill Switch. Click to resume trading.';
+  } else {
+    killSwitchBtn.innerHTML = `
+      <span style="width:6px; height:6px; border-radius:50%; background:#10b981; display:inline-block; flex:none;"></span>
+      <span style="color:var(--vela-fg-muted, #868a96);">Trading</span>
+      <span style="color:var(--vela-fg, #d1d4dc); font-weight:600;">Active</span>
+    `;
+    killSwitchBtn.title = 'Trading Guardrails Active. Click to trigger emergency Kill Switch.';
+  }
 }
 
 function updateBrokerChipUI(): void {
@@ -1006,7 +1035,6 @@ function updateBrokerChipUI(): void {
 
   const env = account?.environment || 'paper';
   const envColor = env === 'live' ? '#ef4444' : env === 'demo' ? '#f59e0b' : '#38bdf8';
-  const envBg = env === 'live' ? 'rgba(239,68,68,0.2)' : env === 'demo' ? 'rgba(245,158,11,0.2)' : 'rgba(56,189,248,0.2)';
 
   const brokerName = adapter.name.split('(')[0].trim();
   const accNum = account ? `#${account.accountNumber}` : 'Demo';
@@ -1014,24 +1042,38 @@ function updateBrokerChipUI(): void {
   brokerChip.style.cssText = `
     all: unset;
     cursor: pointer;
+    box-sizing: border-box;
+    height: 26px;
+    line-height: 26px;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 3px 10px;
-    border-radius: 6px;
-    background: #1e293b;
-    border: 1px solid #334155;
-    font-size: 12px;
-    color: #f8fafc;
-    margin-right: 6px;
+    padding: 0 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--vela-border, #2a2b30);
+    font-size: 11px;
+    color: var(--vela-fg, #d1d4dc);
+    margin-right: 4px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    user-select: none;
+    flex: none;
   `;
+  brokerChip.onmouseenter = () => {
+    brokerChip!.style.background = 'var(--vela-hover, rgba(255, 255, 255, 0.06))';
+    brokerChip!.style.borderColor = 'rgba(255, 255, 255, 0.16)';
+  };
+  brokerChip.onmouseleave = () => {
+    brokerChip!.style.background = 'rgba(255, 255, 255, 0.03)';
+    brokerChip!.style.borderColor = 'var(--vela-border, #2a2b30)';
+  };
 
   brokerChip.innerHTML = `
-    <span class="ct-chip-dot" style="background:${envColor}; width:7px; height:7px; border-radius:50%; display:inline-block;"></span>
-    <span style="font-weight: 600;">${escapeHtml(brokerName)} ${escapeHtml(accNum)}</span>
-    <span class="ct-chip-env" style="background: ${envBg}; color: ${envColor}; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 3px;">
-      ${env.toUpperCase()}
-    </span>
+    <span class="ct-chip-dot" style="background:${envColor}; width:6px; height:6px; border-radius:50%; display:inline-block; flex:none;"></span>
+    <span style="color:var(--vela-fg, #d1d4dc); font-weight:550;">${escapeHtml(brokerName)}</span>
+    <span style="color:var(--vela-fg-muted, #868a96); font-weight:400;">${escapeHtml(accNum)}</span>
+    <span class="ct-chip-env" style="background:rgba(255,255,255,0.06); color:var(--vela-fg-muted, #868a96); font-size:9.5px; font-weight:600; padding:1px 4px; border-radius:3px; letter-spacing:0.03em;">${env.toUpperCase()}</span>
   `;
 }
 

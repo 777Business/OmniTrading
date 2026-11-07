@@ -39,6 +39,16 @@ interface DraggingState {
   decimals: number;
 }
 
+interface MountedPositionItem {
+  pos: Position;
+  entryLine: SVGLineElement;
+  entryBadge: HTMLElement;
+  tpLine: SVGLineElement | null;
+  tpBadge: HTMLElement | null;
+  slLine: SVGLineElement | null;
+  slBadge: HTMLElement | null;
+}
+
 export class ChartPositionsOverlay {
   private activeCell: any = null;
   private overlayContainer: HTMLElement | null = null;
@@ -51,6 +61,9 @@ export class ChartPositionsOverlay {
   private resizeObserver: ResizeObserver | null = null;
   private draggingState: DraggingState | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private mountedItems: MountedPositionItem[] = [];
+  private isTrackingActive: boolean = false;
+  private trackingRafId: number | null = null;
 
   constructor(
     private readonly getWorkspace: () => VelaWorkspace | null,
@@ -90,7 +103,7 @@ export class ChartPositionsOverlay {
     window.addEventListener('omni:order-placed', onOrderPlaced);
     this.unsubs.push(() => window.removeEventListener('omni:order-placed', onOrderPlaced));
 
-    // 3. Listen for price ticks to update live PnL
+    // 3. Listen for price ticks to update live PnL and sync coordinates
     const onTick = (e: any) => {
       const detail = e.detail;
       if (!detail) return;
@@ -98,7 +111,7 @@ export class ChartPositionsOverlay {
       const tickSym = cleanSymbol(detail.symbol || '');
 
       if (cellSym && tickSym && (cellSym === tickSym || cellSym.includes(tickSym) || tickSym.includes(cellSym))) {
-        this.renderThrottled();
+        this.syncCoordinates();
       }
     };
     window.addEventListener('omni:price-tick', onTick);
@@ -112,13 +125,61 @@ export class ChartPositionsOverlay {
     });
     this.unsubs.push(unsubReg);
 
-    // 5. Window resize
-    const onResize = () => this.render();
+    // 5. Window resize and scroll/wheel for immediate tracking
+    const onResize = () => {
+      this.syncCoordinates();
+    };
     window.addEventListener('resize', onResize);
     this.unsubs.push(() => window.removeEventListener('resize', onResize));
 
+    const onWheel = () => {
+      this.syncCoordinates();
+    };
+    window.addEventListener('wheel', onWheel, { passive: true });
+    this.unsubs.push(() => window.removeEventListener('wheel', onWheel));
+
+    // 6. Global pointer tracking: whenever mouse button is pressed anywhere (dragging chart, price scale, etc.)
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.buttons > 0) this.startActiveTracking();
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.buttons > 0) {
+        this.syncCoordinates();
+        this.startActiveTracking();
+      }
+    };
+    const onPointerUp = () => {
+      this.stopActiveTracking();
+      this.syncCoordinates();
+    };
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerup', onPointerUp, { passive: true });
+    this.unsubs.push(() => window.removeEventListener('pointerdown', onPointerDown));
+    this.unsubs.push(() => window.removeEventListener('pointermove', onPointerMove));
+    this.unsubs.push(() => window.removeEventListener('pointerup', onPointerUp));
+
     this.refreshPositions();
   }
+
+  private startActiveTracking = (): void => {
+    if (this.isTrackingActive) return;
+    this.isTrackingActive = true;
+    const loop = () => {
+      if (!this.isTrackingActive) return;
+      this.syncCoordinates();
+      this.trackingRafId = requestAnimationFrame(loop);
+    };
+    this.trackingRafId = requestAnimationFrame(loop);
+  };
+
+  private stopActiveTracking = (): void => {
+    this.isTrackingActive = false;
+    if (this.trackingRafId !== null) {
+      cancelAnimationFrame(this.trackingRafId);
+      this.trackingRafId = null;
+    }
+  };
 
   public async refreshPositions(): Promise<void> {
     const registry = BrokerRegistry.getInstance();
@@ -133,6 +194,7 @@ export class ChartPositionsOverlay {
   public attachToCell(cell: any): void {
     if (!cell) return;
     if (this.activeCell === cell && this.overlayContainer && this.overlayContainer.isConnected) {
+      this.hookRenderer(cell);
       this.refreshPositions();
       return;
     }
@@ -143,31 +205,57 @@ export class ChartPositionsOverlay {
     const host = (cell.host || cell.element) as HTMLElement;
     if (host) {
       this.attachedHost = host;
-      host.addEventListener('wheel', this.renderThrottled, { passive: true });
-      host.addEventListener('pointermove', this.onHostPointerMove, { passive: true });
+      host.addEventListener('wheel', () => this.syncCoordinates(), { passive: true });
+      host.addEventListener('pointermove', (e: PointerEvent) => {
+        if (e.buttons > 0 && !this.draggingState) {
+          this.syncCoordinates();
+        }
+      }, { passive: true });
 
       try {
-        this.resizeObserver = new ResizeObserver(() => this.renderThrottled());
+        this.resizeObserver = new ResizeObserver(() => this.syncCoordinates());
         this.resizeObserver.observe(host);
       } catch {}
     }
 
     // Listen to chart viewport and render events
     try {
-      cell.chart?.on?.('viewport:changed', this.renderThrottled);
-      cell.chart?.on?.('render', this.renderThrottled);
+      cell.chart?.on?.('viewport:changed', () => this.syncCoordinates());
+      cell.chart?.on?.('pane:changed', () => this.syncCoordinates());
+      cell.chart?.on?.('priceStyle:change', () => this.syncCoordinates());
       cell.chart?.on?.('market:changed', () => this.refreshPositions());
     } catch {}
 
+    this.hookRenderer(cell);
     this.ensureOverlay();
     this.refreshPositions();
   }
 
-  private onHostPointerMove = (e: PointerEvent): void => {
-    if (e.buttons > 0 && !this.draggingState) {
-      this.renderThrottled();
+  private hookRenderer(cell: any): void {
+    const chart = cell?.chart;
+    if (!chart) return;
+    const renderer = (chart as any).rendererPort ?? (chart as any).orchestrator?.renderer ?? (chart as any).renderer;
+    if (!renderer || (renderer as any)._omniPositionsHooked) return;
+    (renderer as any)._omniPositionsHooked = true;
+
+    const origRenderFrame = renderer.renderFrame;
+    if (typeof origRenderFrame === 'function') {
+      renderer.renderFrame = (...args: any[]) => {
+        const out = origRenderFrame.apply(renderer, args);
+        this.syncCoordinates();
+        return out;
+      };
     }
-  };
+
+    const origAnimTick = renderer.animTick;
+    if (typeof origAnimTick === 'function') {
+      renderer.animTick = (...args: any[]) => {
+        const out = origAnimTick.apply(renderer, args);
+        this.syncCoordinates();
+        return out;
+      };
+    }
+  }
 
   private ensureOverlay(): void {
     if (!this.activeCell) {
@@ -228,9 +316,9 @@ export class ChartPositionsOverlay {
   }
 
   private teardown(): void {
+    this.stopActiveTracking();
     if (this.attachedHost) {
-      this.attachedHost.removeEventListener('wheel', this.renderThrottled);
-      this.attachedHost.removeEventListener('pointermove', this.onHostPointerMove);
+      this.attachedHost.removeEventListener('wheel', this.syncCoordinates);
       this.attachedHost = null;
     }
     if (this.resizeObserver) {
@@ -245,6 +333,7 @@ export class ChartPositionsOverlay {
       clearTimeout(this.retryTimer);
       this.retryTimer = null;
     }
+    this.mountedItems = [];
     if (this.overlayContainer) {
       this.overlayContainer.remove();
       this.overlayContainer = null;
@@ -366,6 +455,7 @@ export class ChartPositionsOverlay {
     });
 
     if (activePositions.length === 0) {
+      this.mountedItems = [];
       if (this.overlaySvg.hasChildNodes()) this.overlaySvg.innerHTML = '';
       if (this.badgesContainer.hasChildNodes()) this.badgesContainer.innerHTML = '';
       return;
@@ -374,6 +464,7 @@ export class ChartPositionsOverlay {
     // Clear previous DOM
     this.overlaySvg.innerHTML = '';
     this.badgesContainer.innerHTML = '';
+    const newMounted: MountedPositionItem[] = [];
 
     const rightGutter = 85; // Leave room for price axis
     const maxLineX = Math.max(100, chartWidth - rightGutter);
@@ -387,6 +478,8 @@ export class ChartPositionsOverlay {
       const priceDecimals = String(pos.entryPrice).includes('.')
         ? String(pos.entryPrice).split('.')[1].length
         : 2;
+
+      let currentMounted: MountedPositionItem | null = null;
 
       // -------------------------------------------------------------
       // 1. POSITION ENTRY LINE & BADGE (Discreet cTrader/TradingView style)
@@ -520,6 +613,16 @@ export class ChartPositionsOverlay {
         }
 
         this.badgesContainer.appendChild(entryBadge);
+
+        currentMounted = {
+          pos,
+          entryLine,
+          entryBadge,
+          tpLine: null,
+          tpBadge: null,
+          slLine: null,
+          slBadge: null,
+        };
       }
 
       // -------------------------------------------------------------
@@ -600,6 +703,11 @@ export class ChartPositionsOverlay {
           this.setupBracketDrag(tpBadge, 'tp', pos, tpLine, tpBadge, priceDecimals);
 
           this.badgesContainer.appendChild(tpBadge);
+
+          if (currentMounted) {
+            currentMounted.tpLine = tpLine;
+            currentMounted.tpBadge = tpBadge;
+          }
         }
       }
 
@@ -680,10 +788,88 @@ export class ChartPositionsOverlay {
           this.setupBracketDrag(slBadge, 'sl', pos, slLine, slBadge, priceDecimals);
 
           this.badgesContainer.appendChild(slBadge);
+
+          if (currentMounted) {
+            currentMounted.slLine = slLine;
+            currentMounted.slBadge = slBadge;
+          }
+        }
+      }
+
+      if (currentMounted) {
+        newMounted.push(currentMounted);
+      }
+    }
+
+    this.mountedItems = newMounted;
+    this.syncCoordinates();
+  }
+
+  public syncCoordinates = (): void => {
+    if (this.mountedItems.length === 0) return;
+    const res = this.resolveRenderer();
+    if (!res) return;
+
+    const { chartWidth, chartHeight } = res;
+    if (chartWidth <= 0 || chartHeight <= 0) return;
+
+    const rightGutter = 85; // Leave room for price axis
+    const maxLineX = Math.max(100, chartWidth - rightGutter);
+
+    for (const item of this.mountedItems) {
+      const pos = item.pos;
+
+      // 1. Entry Line & Badge
+      const yEntry = this.priceToY(pos.entryPrice, res);
+      if (yEntry !== null && yEntry >= 0 && yEntry <= chartHeight) {
+        item.entryLine.style.display = '';
+        item.entryLine.setAttribute('x2', String(maxLineX));
+        item.entryLine.setAttribute('y1', String(yEntry));
+        item.entryLine.setAttribute('y2', String(yEntry));
+        item.entryBadge.style.display = 'inline-flex';
+        item.entryBadge.style.top = `${yEntry}px`;
+      } else {
+        item.entryLine.style.display = 'none';
+        item.entryBadge.style.display = 'none';
+      }
+
+      // 2. TP Line & Badge (skip if this specific bracket is actively being dragged)
+      if (item.tpLine && item.tpBadge && typeof pos.takeProfit === 'number' && pos.takeProfit > 0) {
+        if (!this.draggingState || this.draggingState.pos.id !== pos.id || this.draggingState.type !== 'tp') {
+          const yTp = this.priceToY(pos.takeProfit, res);
+          if (yTp !== null && yTp >= 0 && yTp <= chartHeight) {
+            item.tpLine.style.display = '';
+            item.tpLine.setAttribute('x2', String(maxLineX));
+            item.tpLine.setAttribute('y1', String(yTp));
+            item.tpLine.setAttribute('y2', String(yTp));
+            item.tpBadge.style.display = 'inline-flex';
+            item.tpBadge.style.top = `${yTp}px`;
+          } else {
+            item.tpLine.style.display = 'none';
+            item.tpBadge.style.display = 'none';
+          }
+        }
+      }
+
+      // 3. SL Line & Badge (skip if this specific bracket is actively being dragged)
+      if (item.slLine && item.slBadge && typeof pos.stopLoss === 'number' && pos.stopLoss > 0) {
+        if (!this.draggingState || this.draggingState.pos.id !== pos.id || this.draggingState.type !== 'sl') {
+          const ySl = this.priceToY(pos.stopLoss, res);
+          if (ySl !== null && ySl >= 0 && ySl <= chartHeight) {
+            item.slLine.style.display = '';
+            item.slLine.setAttribute('x2', String(maxLineX));
+            item.slLine.setAttribute('y1', String(ySl));
+            item.slLine.setAttribute('y2', String(ySl));
+            item.slBadge.style.display = 'inline-flex';
+            item.slBadge.style.top = `${ySl}px`;
+          } else {
+            item.slLine.style.display = 'none';
+            item.slBadge.style.display = 'none';
+          }
         }
       }
     }
-  }
+  };
 
   /**
    * Interactive drag handler for TP and SL bracket lines.

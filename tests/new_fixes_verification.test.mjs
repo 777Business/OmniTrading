@@ -221,4 +221,49 @@ describe('New Fixes Verification Suite', () => {
     const linkCode = fs.readFileSync(colorLinkPath, 'utf8');
     assert.ok(linkCode.includes('opacity:0.95'), 'Group dot must be clearly visible and not faded');
   });
+
+  test('14. Floating buttons subordinated under chart settings & modal dialogs (Image 1 fix)', () => {
+    const htmlPath = path.resolve('index.html');
+    const htmlCode = fs.readFileSync(htmlPath, 'utf8');
+
+    assert.ok(htmlCode.includes('.vela-cell-corner-controls'), 'Corner controls must exist');
+    assert.ok(htmlCode.includes('z-index: 15; /* Subordinated below Vela modal dialogs and menus */'), 'Corner controls z-index must be 15');
+    assert.ok(htmlCode.includes('.omni-quick-trade-widget'), 'Quick trade widget must exist');
+    assert.ok(htmlCode.includes('--vela-z-dialog: 1000 !important;'), 'Vela dialog token must be elevated above widgets');
+    assert.ok(htmlCode.includes('.vela-dialog-positioner'), 'Dialog positioners must be elevated');
+  });
+
+  test('15. Topbar buttons adhere to Vela dark theme without visual distraction (Image 2 fix)', () => {
+    const mainPath = path.resolve('src/main.ts');
+    const mainCode = fs.readFileSync(mainPath, 'utf8');
+
+    // Kill switch button styling
+    assert.ok(mainCode.includes('height: 26px;'), 'Kill switch and broker buttons must be standard 26px height');
+    assert.ok(mainCode.includes('var(--vela-border, #2a2b30)'), 'Buttons must use subtle Vela dark theme border');
+    assert.ok(!mainCode.includes('border: 1px solid #22c55e'), 'Distracting neon green border must be removed');
+    assert.ok(!mainCode.includes('background: #1e293b;'), 'Chunky slate-800 background must be replaced with subtle Vela background');
+  });
+
+  test('16. Topbar spread chip clean single-line styling (Image 3 fix)', () => {
+    const htmlPath = path.resolve('index.html');
+    const htmlCode = fs.readFileSync(htmlPath, 'utf8');
+    assert.ok(htmlCode.includes('white-space: nowrap !important;'), 'Spread chip must never wrap into multiple lines');
+    assert.ok(htmlCode.includes('height: 26px;'), 'Spread chip must match topbar 26px height');
+    assert.ok(htmlCode.includes('border: 1px solid var(--vela-border, #2a2b30);'), 'Spread chip must use subtle Vela border');
+
+    const spreadPath = path.resolve('src/spread.ts');
+    const spreadCode = fs.readFileSync(spreadPath, 'utf8');
+    assert.ok(!spreadCode.includes("this.pill.style.borderColor = 'var(--vela-accent"), 'Spread chip border must not be overridden with bright accent');
+  });
+
+  test('17. Real-time zero-latency chart position tracking on pan, zoom & scale drag', () => {
+    const overlayPath = path.resolve('src/ui/chartPositionsOverlay.ts');
+    const code = fs.readFileSync(overlayPath, 'utf8');
+
+    assert.ok(code.includes('hookRenderer(cell: any)'), 'Must hook native Vela renderer for synchronous frame updates');
+    assert.ok(code.includes('origRenderFrame.apply'), 'Must wrap renderFrame for zero-delay canvas frame tracking');
+    assert.ok(code.includes('origAnimTick.apply'), 'Must wrap animTick for inertia/easing animation tracking');
+    assert.ok(code.includes('syncCoordinates'), 'Must provide ultra-fast coordinate synchronization without DOM rebuild');
+    assert.ok(code.includes('startActiveTracking'), 'Must maintain active RAF tracking while dragging pointer/price axis');
+  });
 });
