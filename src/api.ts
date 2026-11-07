@@ -35,6 +35,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export async function getSession(): Promise<{ sessionToken: string; killSwitchActive: boolean; maxOrderVolume: number }> {
   const data = await request<{ sessionToken: string; killSwitchActive: boolean; maxOrderVolume: number }>('/api/session');
   cachedSessionToken = data.sessionToken;
+  if (typeof window !== 'undefined') {
+    (window as any).__OMNI_SESSION_TOKEN = data.sessionToken;
+  }
   return data;
 }
 

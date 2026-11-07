@@ -74,6 +74,8 @@ import { PineScriptEditor } from './pineEditor';
 import { ReplayManager } from './replay';
 import { openAboutModal } from './ui/aboutModal';
 import { registerFootprintStyle } from './footprint';
+import { ChartPositionsOverlay } from './ui/chartPositionsOverlay';
+import { TradingPanel } from './ui/tradingPanel';
 
 import { BrokerRegistry } from './brokers/registry';
 import type { BrokerAccount } from './brokers/types';
@@ -97,12 +99,16 @@ let isKillSwitchActive = false;
 const watchlist = new WatchlistManager(() => workspace);
 const spreadVisualizer = new SpreadVisualizer(() => workspace);
 const quickTrade = new QuickTradeWidget(() => workspace, (msg) => showToast(msg));
+const chartPositionsOverlay = new ChartPositionsOverlay(() => workspace, (msg) => showToast(msg));
+const tradingPanel = new TradingPanel(() => workspace, (msg) => showToast(msg));
 const pineEditor = new PineScriptEditor(() => workspace, (msg) => showToast(msg));
 const replayManager = new ReplayManager(() => workspace, (msg) => showToast(msg));
 
 (window as any).__openPineEditor = (code?: string, name?: string) => pineEditor.open(code, name);
 (window as any).__replayManager = replayManager;
 (window as any).__quickTrade = quickTrade;
+(window as any).__chartPositionsOverlay = chartPositionsOverlay;
+(window as any).__tradingPanel = tradingPanel;
 
 // ---- Register Footprint (Order Flow) Chart Style --------------------------
 
@@ -207,6 +213,17 @@ try {
     order: 87,
     run: () => {
       quickTrade.toggleVisibility();
+    },
+  });
+
+  registerWidgetAction({
+    id: 'vela.toggle-trading-panel',
+    target: 'topbar',
+    label: 'Trade Manager',
+    icon: 'trade-quick',
+    order: 87.5,
+    run: () => {
+      tradingPanel.toggle();
     },
   });
 
@@ -800,6 +817,7 @@ function initWorkspaceFeatures(ws: VelaWorkspace): void {
     if (ws.active?.id === cell.id || ws.cells().length === 1) {
       quickTrade.attachToCell(cell);
       spreadVisualizer.attachToCell(cell);
+      chartPositionsOverlay.attachToCell(cell);
     }
   };
 
@@ -817,6 +835,7 @@ function initWorkspaceFeatures(ws: VelaWorkspace): void {
     if (cell) {
       quickTrade.attachToCell(cell);
       spreadVisualizer.attachToCell(cell);
+      chartPositionsOverlay.attachToCell(cell);
     }
     autoSaveWorkspace(ws);
   });
@@ -828,6 +847,7 @@ function initWorkspaceFeatures(ws: VelaWorkspace): void {
     if (ws.active) {
       quickTrade.attachToCell(ws.active);
       spreadVisualizer.attachToCell(ws.active);
+      chartPositionsOverlay.attachToCell(ws.active);
     }
     mountTopbarControls();
     autoSaveWorkspace(ws);

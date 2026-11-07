@@ -135,7 +135,9 @@ export interface BrokerAdapter {
   placeOrder?(order: OrderRequest): Promise<OrderResult>;
   modifyPosition?(req: ModifyPositionRequest): Promise<void>;
   closePosition?(positionId: string, volume?: number): Promise<void>;
+  closeAllPositions?(): Promise<void>;
   getPositions?(): Promise<Position[]>;
+  getOrdersHistory?(): Promise<any[]>;
 
   onQuote?(symbol: string, cb: (quote: { bid: number; ask: number; time: number }) => void): () => void;
   onPositionChange?(cb: (positions: Position[]) => void): () => void;

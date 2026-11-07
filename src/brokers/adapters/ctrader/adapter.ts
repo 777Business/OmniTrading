@@ -71,6 +71,7 @@ export class CTraderAdapter implements BrokerAdapter {
   private provider: CtProvider | null = null;
   private activeAccount: BrokerAccount | null = null;
   private accountsCache: BrokerAccount[] = [];
+  private ordersHistory: any[] = [];
 
   public async connect(_credentials: Record<string, any>, _env: BrokerEnvironment): Promise<void> {
     // Connection is established when an account handle is selected
@@ -208,9 +209,26 @@ export class CTraderAdapter implements BrokerAdapter {
       return { success: false, error: res.error.message || 'cTrader order execution failed' };
     }
 
+    const orderId = String(res.position?.positionId || res.order?.orderId || Date.now());
+    this.ordersHistory.unshift({
+      id: orderId,
+      symbol: order.symbol.toUpperCase(),
+      side: order.side,
+      type: order.type,
+      volume: order.volume,
+      price: res.position?.price || 0,
+      status: 'FILLED',
+      time: Date.now(),
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('omni:position-change'));
+      window.dispatchEvent(new CustomEvent('omni:order-placed', { detail: { orderId, symbol: order.symbol, side: order.side } }));
+    }
+
     return {
       success: true,
-      orderId: String(res.position?.positionId || res.order?.orderId || Date.now()),
+      orderId,
       executionPrice: res.position?.price,
       filledVolume: order.volume,
       message: `Order filled at ${res.position?.price || 'market'}`,
@@ -224,11 +242,45 @@ export class CTraderAdapter implements BrokerAdapter {
       stopLoss: req.stopLoss,
       takeProfit: req.takeProfit,
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('omni:position-change'));
+    }
   }
 
   public async closePosition(positionId: string, volume?: number): Promise<void> {
     if (!this.client) throw new Error('cTrader client is not connected.');
     await this.client.closePosition(Number(positionId), volume);
+    this.ordersHistory.unshift({
+      id: `ctrader-close-${positionId}-${Date.now()}`,
+      symbol: 'POSITION',
+      side: 'close',
+      type: 'market',
+      volume: volume || 0,
+      price: 0,
+      status: 'CLOSED',
+      time: Date.now(),
+    });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('omni:position-change'));
+    }
+  }
+
+  public async closeAllPositions(): Promise<number> {
+    const positions = await this.getPositions();
+    let count = 0;
+    for (const pos of positions) {
+      try {
+        await this.closePosition(pos.id);
+        count++;
+      } catch {
+        /* ignore individual close errors */
+      }
+    }
+    return count;
+  }
+
+  public async getOrdersHistory(): Promise<any[]> {
+    return [...this.ordersHistory];
   }
 
   public async getPositions(): Promise<Position[]> {

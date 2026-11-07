@@ -1,9 +1,9 @@
 /**
- * OmniTrading - Built-in Paper Trading Broker Adapter
+ * OmniTrading - Built-in Multi-Asset Paper Trading Broker Adapter
  *
- * Provides a 100% local simulated trading environment.
- * Requires no external account or credentials. Orders are executed
- * against live and simulated prices with local balance and position tracking.
+ * Provides a 100% local simulated trading environment across Forex,
+ * Commodities (Gold, Silver, Oil), Cryptocurrencies, and US Equities.
+ * Requires zero setup or API keys. Orders execute against real and simulated market feeds.
  *
  * Copyright (c) 2026 777Business
  * Licensed under the MIT License.
@@ -21,21 +21,60 @@ import type {
   ModifyPositionRequest,
   BrokerEnvironment,
 } from '../../types';
-import { BinanceProvider } from '@luxalgo/vela/providers/binance';
+import { UniversalMarketDataProvider, CATALOG_SYMBOLS } from './universalProvider';
 
-const STORAGE_KEY = 'omni-paper-trading-account';
-const DEFAULT_INITIAL_BALANCE = 50000;
+const STORAGE_KEY = 'omni-paper-trading-accounts-v2';
 
-interface PaperState {
+interface AccountState {
   balance: number;
   positions: Position[];
   ordersHistory: any[];
 }
 
+interface MultiAccountPaperState {
+  activeAccountId: string;
+  accounts: Record<string, AccountState>;
+}
+
+const DEFAULT_ACCOUNTS_DEF = [
+  {
+    id: 'paper-universal',
+    handle: 'paper-universal-multi-asset',
+    accountNumber: 'SIM-ALL-777',
+    name: 'Omni Universal Paper (Multi-Asset: Forex, Gold, Crypto, Stocks)',
+    currency: 'USD',
+    defaultBalance: 50000,
+  },
+  {
+    id: 'paper-forex',
+    handle: 'paper-forex-commodities',
+    accountNumber: 'SIM-FX-10K',
+    name: 'Forex & Commodities Paper (EURUSD, GBPUSD, XAUUSD, Oil)',
+    currency: 'USD',
+    defaultBalance: 10000,
+  },
+  {
+    id: 'paper-crypto',
+    handle: 'paper-crypto-binance',
+    accountNumber: 'SIM-BINANCE-USDT',
+    name: 'Binance Crypto Paper (Spot & Futures Simulation)',
+    currency: 'USDT',
+    defaultBalance: 100000,
+  },
+  {
+    id: 'paper-equity',
+    handle: 'paper-alpaca-equities',
+    accountNumber: 'SIM-EQUITY-100K',
+    name: 'Alpaca US Equities Paper (Stocks & ETFs Simulation)',
+    currency: 'USD',
+    defaultBalance: 100000,
+  },
+];
+
 export class PaperTradingAdapter implements BrokerAdapter {
   public readonly id = 'paper';
-  public readonly name = 'Paper Trading (Local Simulation)';
-  public readonly description = 'Free instant simulated trading account. Zero setup, no credentials required.';
+  public readonly name = 'Paper Trading (Universal Multi-Asset)';
+  public readonly description = 'Instant simulated trading across Forex, Commodities, Crypto, and US Equities. Zero setup, no keys needed.';
   public readonly status = 'stable';
   public readonly supportedEnvironments: BrokerEnvironment[] = ['paper'];
 
@@ -56,37 +95,53 @@ export class PaperTradingAdapter implements BrokerAdapter {
     fields: [
       {
         name: 'startingBalance',
-        label: 'Starting Balance ($)',
+        label: 'Starting Balance',
         type: 'text',
         required: false,
         defaultValue: '50000',
-        helpText: 'Simulated cash balance for paper trading.',
+        helpText: 'Simulated cash balance for paper trading account.',
       },
     ],
-    instructions: 'Paper Trading runs entirely locally on your device. No API keys or broker accounts are required.',
+    instructions: 'Universal Paper Trading runs locally on your device with real-time multi-asset market data. No API keys or external broker accounts are required.',
   };
 
   private connected = true;
-  private state: PaperState;
+  private state: MultiAccountPaperState;
+  private dataProvider: UniversalMarketDataProvider;
   private currentQuotes = new Map<string, { bid: number; ask: number; time: number }>();
   private quoteSubscribers = new Map<string, Set<(q: any) => void>>();
   private positionSubscribers = new Set<(positions: Position[]) => void>();
 
   constructor() {
     this.state = this.loadState();
+    this.dataProvider = new UniversalMarketDataProvider();
+
+    // Connect data provider live ticks to internal paper engine
+    this.dataProvider.onLiveQuote((q) => {
+      this.updateLivePrice(q.symbol, q.bid, q.ask);
+    });
   }
 
-  private loadState(): PaperState {
+  private loadState(): MultiAccountPaperState {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw);
     } catch {
       /* ignore */
     }
+
+    const initialAccounts: Record<string, AccountState> = {};
+    for (const acc of DEFAULT_ACCOUNTS_DEF) {
+      initialAccounts[acc.id] = {
+        balance: acc.defaultBalance,
+        positions: [],
+        ordersHistory: [],
+      };
+    }
+
     return {
-      balance: DEFAULT_INITIAL_BALANCE,
-      positions: [],
-      ordersHistory: [],
+      activeAccountId: 'paper-universal',
+      accounts: initialAccounts,
     };
   }
 
@@ -96,6 +151,20 @@ export class PaperTradingAdapter implements BrokerAdapter {
     } catch {
       /* ignore */
     }
+  }
+
+  private getActiveAccountState(): AccountState {
+    let acc = this.state.accounts[this.state.activeAccountId];
+    if (!acc) {
+      this.state.activeAccountId = 'paper-universal';
+      acc = this.state.accounts['paper-universal'] || {
+        balance: 50000,
+        positions: [],
+        ordersHistory: [],
+      };
+      this.state.accounts['paper-universal'] = acc;
+    }
+    return acc;
   }
 
   public async connect(_credentials: Record<string, any>, _env: BrokerEnvironment): Promise<void> {
@@ -111,55 +180,101 @@ export class PaperTradingAdapter implements BrokerAdapter {
   }
 
   public async getAccounts(): Promise<BrokerAccount[]> {
-    const equity = this.calculateEquity();
-    return [
-      {
-        id: 'paper-primary',
-        handle: 'paper-account-default',
+    return DEFAULT_ACCOUNTS_DEF.map((def) => {
+      const accState = this.state.accounts[def.id] || { balance: def.defaultBalance, positions: [] };
+      let unPnL = 0;
+      for (const p of accState.positions || []) {
+        unPnL += p.unrealizedPnL || 0;
+      }
+      const equity = accState.balance + unPnL;
+
+      const symbol = def.currency === 'USDT' ? 'USDT' : '$';
+      const balanceFormatted = `${symbol}${accState.balance.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+
+      return {
+        id: def.id,
+        handle: def.handle,
         brokerId: 'paper',
-        accountNumber: 'SIM-777001',
-        name: 'Paper Simulation Account',
+        accountNumber: def.accountNumber,
+        name: def.name,
         environment: 'paper',
-        currency: 'USD',
-        balance: this.state.balance,
-        balanceFormatted: `$${this.state.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        currency: def.currency,
+        balance: accState.balance,
+        balanceFormatted,
         equity,
         tradingEnabled: true,
-      },
-    ];
+      };
+    });
   }
 
   public async selectAccount(accountId: string): Promise<BrokerAccount> {
     const accounts = await this.getAccounts();
     const found = accounts.find((a) => a.id === accountId);
     if (!found) throw new Error(`Paper account ${accountId} not found`);
+    this.state.activeAccountId = accountId;
+    this.saveState();
+    this.notifyPositions();
     return found;
   }
 
   public getActiveAccount(): BrokerAccount | null {
-    const equity = this.calculateEquity();
+    const def =
+      DEFAULT_ACCOUNTS_DEF.find((a) => a.id === this.state.activeAccountId) ||
+      DEFAULT_ACCOUNTS_DEF[0];
+    const accState = this.getActiveAccountState();
+
+    let unPnL = 0;
+    for (const p of accState.positions || []) {
+      unPnL += p.unrealizedPnL || 0;
+    }
+    const equity = accState.balance + unPnL;
+    const symbol = def.currency === 'USDT' ? 'USDT' : '$';
+
     return {
-      id: 'paper-primary',
-      handle: 'paper-account-default',
+      id: def.id,
+      handle: def.handle,
       brokerId: 'paper',
-      accountNumber: 'SIM-777001',
-      name: 'Paper Simulation Account',
+      accountNumber: def.accountNumber,
+      name: def.name,
       environment: 'paper',
-      currency: 'USD',
-      balance: this.state.balance,
-      balanceFormatted: `$${this.state.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      currency: def.currency,
+      balance: accState.balance,
+      balanceFormatted: `${symbol}${accState.balance.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
       equity,
       tradingEnabled: true,
     };
   }
 
   public createDataProvider(_account: BrokerAccount): any {
-    return new BinanceProvider();
+    return this.dataProvider;
   }
 
   public async getSymbolSpec(symbol: string): Promise<SymbolSpec> {
     const cleanSym = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const isForex = cleanSym.length === 6 && (cleanSym.endsWith('USD') || cleanSym.startsWith('EUR') || cleanSym.startsWith('GBP'));
+    const found = CATALOG_SYMBOLS.find((s) => s.ticker === cleanSym);
+
+    if (found) {
+      return {
+        symbol: found.ticker,
+        minVolume: found.minVolume,
+        maxVolume: found.maxVolume,
+        stepVolume: found.stepVolume,
+        lotSize: found.lotSize,
+        digits: found.digits,
+        pipPosition: found.pipPosition,
+        tickSize: 1 / Math.pow(10, found.digits),
+      };
+    }
+
+    const isForex =
+      cleanSym.length === 6 &&
+      (cleanSym.endsWith('USD') || cleanSym.startsWith('EUR') || cleanSym.startsWith('GBP'));
     const isJpy = cleanSym.endsWith('JPY');
 
     if (isForex) {
@@ -189,19 +304,40 @@ export class PaperTradingAdapter implements BrokerAdapter {
   }
 
   public async placeOrder(order: OrderRequest): Promise<OrderResult> {
-    const spec = await this.getSymbolSpec(order.symbol);
-    const quote = this.currentQuotes.get(order.symbol.toUpperCase()) || {
-      bid: order.price || 100,
-      ask: (order.price || 100) * 1.0001,
-      time: Date.now(),
-    };
+    const sym = order.symbol.toUpperCase();
+    const spec = await this.getSymbolSpec(sym);
+
+    let quote = this.currentQuotes.get(sym);
+    if (!quote || quote.bid <= 0) {
+      const defaultP =
+        order.price && order.price > 0
+          ? order.price
+          : sym.includes('JPY')
+          ? 153.5
+          : sym.length === 6 && (sym.endsWith('USD') || sym.startsWith('EUR'))
+          ? 1.085
+          : sym === 'XAUUSD'
+          ? 2720.0
+          : sym === 'USOIL'
+          ? 71.5
+          : sym === 'BTCUSD'
+          ? 85000.0
+          : 100.0;
+      const spread = defaultP * 0.00015;
+      quote = {
+        bid: Number((defaultP - spread / 2).toFixed(spec.digits)),
+        ask: Number((defaultP + spread / 2).toFixed(spec.digits)),
+        time: Date.now(),
+      };
+      this.currentQuotes.set(sym, quote);
+    }
 
     const fillPrice = order.side === 'buy' ? quote.ask : quote.bid;
     const orderId = `paper-ord-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
     const newPosition: Position = {
       id: `pos-${orderId}`,
-      symbol: order.symbol.toUpperCase(),
+      symbol: sym,
       side: order.side,
       volume: order.volume,
       entryPrice: fillPrice,
@@ -212,19 +348,39 @@ export class PaperTradingAdapter implements BrokerAdapter {
       openTime: Date.now(),
     };
 
-    this.state.positions.push(newPosition);
-    this.state.ordersHistory.push({
+    const accState = this.getActiveAccountState();
+    accState.positions.push(newPosition);
+    accState.ordersHistory.unshift({
       orderId,
-      symbol: order.symbol,
+      symbol: sym,
       side: order.side,
-      type: order.type,
+      type: order.type || 'market',
       volume: order.volume,
       fillPrice,
+      stopLoss: order.stopLoss,
+      takeProfit: order.takeProfit,
       time: Date.now(),
+      status: 'FILLED',
+      action: 'ENTRY',
     });
 
     this.saveState();
     this.notifyPositions();
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('omni:order-placed', {
+          detail: {
+            orderId,
+            symbol: sym,
+            side: order.side,
+            volume: order.volume,
+            fillPrice,
+            position: newPosition,
+          },
+        }),
+      );
+    }
 
     return {
       success: true,
@@ -236,7 +392,8 @@ export class PaperTradingAdapter implements BrokerAdapter {
   }
 
   public async modifyPosition(req: ModifyPositionRequest): Promise<void> {
-    const pos = this.state.positions.find((p) => p.id === req.positionId);
+    const accState = this.getActiveAccountState();
+    const pos = accState.positions.find((p) => p.id === req.positionId);
     if (!pos) throw new Error(`Position ${req.positionId} not found`);
 
     if (req.stopLoss !== undefined) pos.stopLoss = req.stopLoss;
@@ -247,10 +404,11 @@ export class PaperTradingAdapter implements BrokerAdapter {
   }
 
   public async closePosition(positionId: string, volume?: number): Promise<void> {
-    const idx = this.state.positions.findIndex((p) => p.id === positionId);
+    const accState = this.getActiveAccountState();
+    const idx = accState.positions.findIndex((p) => p.id === positionId);
     if (idx < 0) throw new Error(`Position ${positionId} not found`);
 
-    const pos = this.state.positions[idx];
+    const pos = accState.positions[idx];
     const spec = await this.getSymbolSpec(pos.symbol);
     const quote = this.currentQuotes.get(pos.symbol) || {
       bid: pos.currentPrice,
@@ -260,17 +418,57 @@ export class PaperTradingAdapter implements BrokerAdapter {
 
     const closePrice = pos.side === 'buy' ? quote.bid : quote.ask;
     const pnlPoints = pos.side === 'buy' ? closePrice - pos.entryPrice : pos.entryPrice - closePrice;
-    const realizedPnL = pnlPoints * pos.volume * spec.lotSize;
+    const closeVol = volume && volume < pos.volume ? volume : pos.volume;
+    let realizedPnL = pnlPoints * closeVol * spec.lotSize;
+    if (pos.symbol.endsWith('JPY') && closePrice > 0) {
+      realizedPnL = realizedPnL / closePrice;
+    }
+    realizedPnL = Number(realizedPnL.toFixed(2));
 
-    this.state.balance += realizedPnL;
-    this.state.positions.splice(idx, 1);
+    accState.balance += realizedPnL;
+
+    accState.ordersHistory.unshift({
+      orderId: `close-${pos.id}-${Date.now().toString(36)}`,
+      symbol: pos.symbol,
+      side: pos.side === 'buy' ? 'sell' : 'buy',
+      type: 'market',
+      volume: closeVol,
+      fillPrice: closePrice,
+      time: Date.now(),
+      status: 'CLOSED',
+      action: 'EXIT',
+      realizedPnL,
+    });
+
+    if (volume && volume < pos.volume) {
+      pos.volume -= volume;
+    } else {
+      accState.positions.splice(idx, 1);
+    }
 
     this.saveState();
     this.notifyPositions();
   }
 
+  public async closeAllPositions(): Promise<number> {
+    const accState = this.getActiveAccountState();
+    const positionsToClose = [...accState.positions];
+    let count = 0;
+    for (const p of positionsToClose) {
+      await this.closePosition(p.id);
+      count++;
+    }
+    return count;
+  }
+
+  public async getOrdersHistory(): Promise<any[]> {
+    const accState = this.getActiveAccountState();
+    return [...(accState.ordersHistory || [])];
+  }
+
   public async getPositions(): Promise<Position[]> {
-    return [...this.state.positions];
+    const accState = this.getActiveAccountState();
+    return [...accState.positions];
   }
 
   public onQuote(symbol: string, cb: (quote: { bid: number; ask: number; time: number }) => void): () => void {
@@ -280,6 +478,10 @@ export class PaperTradingAdapter implements BrokerAdapter {
     }
     this.quoteSubscribers.get(sym)!.add(cb);
 
+    // If we have a cached quote, emit immediately
+    const existing = this.currentQuotes.get(sym);
+    if (existing) cb(existing);
+
     return () => {
       this.quoteSubscribers.get(sym)?.delete(cb);
     };
@@ -287,7 +489,8 @@ export class PaperTradingAdapter implements BrokerAdapter {
 
   public onPositionChange(cb: (positions: Position[]) => void): () => void {
     this.positionSubscribers.add(cb);
-    cb(this.state.positions);
+    const accState = this.getActiveAccountState();
+    cb(accState.positions);
     return () => {
       this.positionSubscribers.delete(cb);
     };
@@ -297,13 +500,27 @@ export class PaperTradingAdapter implements BrokerAdapter {
     const sym = symbol.toUpperCase();
     this.currentQuotes.set(sym, { bid, ask, time: Date.now() });
 
-    // Update positions PnL
+    const accState = this.getActiveAccountState();
     let changed = false;
-    for (const pos of this.state.positions) {
+
+    for (const pos of accState.positions) {
       if (pos.symbol === sym) {
         pos.currentPrice = pos.side === 'buy' ? bid : ask;
         const diff = pos.side === 'buy' ? pos.currentPrice - pos.entryPrice : pos.entryPrice - pos.currentPrice;
-        pos.unrealizedPnL = diff * pos.volume * 100000;
+        const isJpy = sym.endsWith('JPY');
+        const lotSize =
+          sym.length === 6 && (sym.endsWith('USD') || sym.endsWith('JPY') || sym.startsWith('EUR'))
+            ? 100000
+            : sym === 'XAUUSD'
+            ? 100
+            : sym === 'USOIL'
+            ? 1000
+            : 1;
+        let pnl = diff * pos.volume * lotSize;
+        if (isJpy && pos.currentPrice > 0) {
+          pnl = pnl / pos.currentPrice;
+        }
+        pos.unrealizedPnL = Number(pnl.toFixed(2));
         changed = true;
       }
     }
@@ -317,16 +534,16 @@ export class PaperTradingAdapter implements BrokerAdapter {
   }
 
   private notifyPositions(): void {
+    const accState = this.getActiveAccountState();
     for (const cb of this.positionSubscribers) {
-      cb([...this.state.positions]);
+      cb([...accState.positions]);
     }
-  }
-
-  private calculateEquity(): number {
-    let unPnL = 0;
-    for (const p of this.state.positions) {
-      unPnL += p.unrealizedPnL;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('omni:position-change', {
+          detail: { positions: [...accState.positions] },
+        }),
+      );
     }
-    return this.state.balance + unPnL;
   }
 }

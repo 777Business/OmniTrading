@@ -49,7 +49,7 @@ function loadPrefs(): QuickTradePrefs {
     tpPips: 20,
     slEnabled: false,
     slPips: 15,
-    instantExecution: false,
+    instantExecution: true,
     minimized: true,
     visible: true,
   };
@@ -339,7 +339,7 @@ export class QuickTradeWidget {
     this.setupDragging();
   }
 
-  private handleOrderClick(side: OrderSide): void {
+  private async handleOrderClick(side: OrderSide): Promise<void> {
     const cell = this.currentCell || this.getWorkspace()?.active;
     const sym = cell?.symbol;
     if (!sym) {
@@ -347,7 +347,34 @@ export class QuickTradeWidget {
       return;
     }
 
-    const estPrice = side === 'buy' ? (this.lastAsk || 0) : (this.lastBid || 0);
+    let estPrice = side === 'buy' ? (this.lastAsk || 0) : (this.lastBid || 0);
+    if (!estPrice || estPrice <= 0) {
+      const readout = cell.chart?.dataWindowReadout?.();
+      estPrice = Number(readout?.ohlc?.close ?? (cell as any)._lastCrossPrice ?? 0);
+    }
+    if (!estPrice || estPrice <= 0) {
+      try {
+        const qRes = await fetch(`/api/market/quote?symbol=${encodeURIComponent(sym)}`);
+        if (qRes.ok) {
+          const qData = await qRes.json();
+          estPrice = side === 'buy' ? Number(qData.ask) : Number(qData.bid);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!estPrice || estPrice <= 0) {
+      const clean = sym.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      estPrice = clean.includes('JPY')
+        ? 153.5
+        : clean.length === 6 && (clean.endsWith('USD') || clean.startsWith('EUR'))
+        ? 1.085
+        : clean === 'XAUUSD'
+        ? 2720.0
+        : clean === 'BTCUSD'
+        ? 85000.0
+        : 100.0;
+    }
 
     let slPrice: number | undefined;
     let tpPrice: number | undefined;
@@ -356,9 +383,11 @@ export class QuickTradeWidget {
 
     if (this.prefs.slEnabled && this.prefs.slPips > 0 && estPrice > 0) {
       slPrice = side === 'buy' ? estPrice - this.prefs.slPips * pipVal : estPrice + this.prefs.slPips * pipVal;
+      slPrice = Number(slPrice.toFixed(this.symbolSpec.digits));
     }
     if (this.prefs.tpEnabled && this.prefs.tpPips > 0 && estPrice > 0) {
       tpPrice = side === 'buy' ? estPrice + this.prefs.tpPips * pipVal : estPrice - this.prefs.tpPips * pipVal;
+      tpPrice = Number(tpPrice.toFixed(this.symbolSpec.digits));
     }
 
     const orderParams = {
@@ -367,11 +396,11 @@ export class QuickTradeWidget {
       lots: this.prefs.lots,
       stopLoss: slPrice,
       takeProfit: tpPrice,
-      estPrice,
+      estPrice: Number(estPrice.toFixed(this.symbolSpec.digits)),
     };
 
     if (this.prefs.instantExecution) {
-      this.executeOrder(orderParams);
+      await this.executeOrder(orderParams);
     } else {
       this.showConfirmation(orderParams);
     }
@@ -454,9 +483,14 @@ export class QuickTradeWidget {
 
     modal.querySelector('.btn-cancel')?.addEventListener('click', () => modal.remove());
     modal.querySelector('.ct-btn-close')?.addEventListener('click', () => modal.remove());
-    modal.querySelector('.btn-confirm')?.addEventListener('click', () => {
+    modal.querySelector('.btn-confirm')?.addEventListener('click', async () => {
+      const btn = modal.querySelector('.btn-confirm') as HTMLButtonElement;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Executing…';
+      }
       modal.remove();
-      this.executeOrder(params);
+      await this.executeOrder(params);
     });
 
     document.body.appendChild(modal);
@@ -476,7 +510,7 @@ export class QuickTradeWidget {
     try {
       this.toast(`⏳ Submitting ${params.side.toUpperCase()} ${params.lots.toFixed(2)} ${params.symbol} to ${adapter.name}...`);
 
-      const res = await adapter.placeOrder({
+      const res = await registry.placeOrder({
         symbol: params.symbol,
         side: params.side,
         volume: params.lots,
@@ -490,7 +524,21 @@ export class QuickTradeWidget {
         try {
           playExecutionSound('default', 0.7);
         } catch {}
-        this.toast(`✅ ${params.side.toUpperCase()} ${params.lots.toFixed(2)} ${params.symbol} filled at ${res.executionPrice || params.estPrice}!`);
+        this.toast(`✅ ${params.side.toUpperCase()} ${params.lots.toFixed(2)} ${params.symbol} filled at ${res.executionPrice || params.estPrice}! Added to chart.`);
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('omni:order-placed', {
+              detail: {
+                symbol: params.symbol,
+                side: params.side,
+                volume: params.lots,
+                price: res.executionPrice || params.estPrice,
+                orderId: res.orderId,
+              },
+            }),
+          );
+        }
       } else {
         this.toast(`❌ Order rejected: ${res.message || 'Check broker log'}`);
       }

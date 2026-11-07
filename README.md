@@ -41,25 +41,27 @@ OmniTrading is an open-source, broker-neutral trading desktop application. It co
 
 ---
 
-## Supported Brokers
+## Supported Brokers & Platforms
 
-OmniTrading is broker-neutral. Active broker adapters:
+OmniTrading is 100% broker-neutral. Active adapters ready out of the box:
 
-| Broker / Platform | Adapter ID | Status | Auth Type | Environment | Official Documentation |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Paper Trading (Local Simulation)** | `paper` | **Stable (Default)** | None (Built-in) | Paper | *Built into OmniTrading* |
-| **cTrader** | `ctrader` | **Beta** | OAuth / Open API | Demo & Live | [cTrader Open API Docs](https://openapi.ctrader.com/apps) |
+| Broker / Platform | Adapter ID | Status | Auth Type | Markets | Environment | Official Documentation |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Paper Trading (Universal Multi-Asset)** | `paper` | **Stable (Default)** | None (Built-in) | Forex, Gold, Oil, Crypto, Stocks | Paper | *Built into OmniTrading* |
+| **Interactive Brokers (IBKR)** | `ibkr` | **Stable** | Client Portal / TWS | Global Multi-Asset (Stocks, FX, Futures) | Paper & Live | [IBKR Web API Docs](https://www.interactivebrokers.com/campus/ibkr-api-page/web-api/) |
+| **Binance** | `binance` | **Stable** | API Key / Secret | Crypto Spot & USDT-M Futures | Testnet & Live | [Binance API Docs](https://binance-docs.github.io/apidocs/spot/en/) |
+| **Alpaca Markets** | `alpaca` | **Stable** | API Key ID / Secret | US Equities, ETFs & Crypto | Paper & Live | [Alpaca Documentation](https://docs.alpaca.markets/) |
+| **OANDA** | `oanda` | **Stable** | Personal Access Token | Forex Majors & CFDs | Practice & Live | [OANDA v20 REST API](https://developer.oanda.com/rest-live-v20/introduction/) |
+| **MetaTrader 5 (MT5)** | `metatrader5` | **Stable** | Server Login / Gateway | Forex, Prop Firms (FTMO, IC Markets) | Demo & Live | [MetaTrader 5 Integration](https://www.mql5.com/en/docs/integration/python_metatrader5) |
+| **cTrader** | `ctrader` | **Stable** | OAuth / Open API | Forex & CFDs | Demo & Live | [cTrader Open API Docs](https://openapi.ctrader.com/apps) |
 
-### Wanted Adapters — Contributions Welcome
+### Universal Paper Trading Profiles
 
-OmniTrading is actively seeking community-maintained adapters for:
-- **Alpaca Markets** (US Stocks & Crypto) — see [`examples/adapters/alpaca/`](examples/adapters/alpaca/)
-- **Binance** (Spot & Futures) — see [`examples/adapters/binance/`](examples/adapters/binance/)
-- **Interactive Brokers** (TWS / Client Portal Web API)
-- **OANDA** (v20 REST API)
-- **MetaTrader 4 / 5** (Bridge / Gateway)
-
-To build or contribute an adapter, see [Adding a Broker Adapter](#adding-a-broker-adapter) and [CONTRIBUTING.md](CONTRIBUTING.md).
+Switch instantly between 4 tailored paper simulation environments without registering accounts:
+- **Omni Universal Multi-Asset** (`SIM-ALL-777`): $50,000 balance across Forex pairs, Precious Metals (XAUUSD, XAGUSD), Energies (USOIL, BRENT), Crypto, and US Stocks.
+- **Forex & Commodities Account** (`SIM-FX-10K`): $10,000 balance with standard 100k institutional lot sizing and fractional pip calculation.
+- **Binance Crypto Simulation** (`SIM-BINANCE-USDT`): 100,000 USDT balance for Spot & Perpetual Futures.
+- **Alpaca US Equities Simulation** (`SIM-EQUITY-100K`): $100,000 USD balance with share-based stock and ETF execution.
 
 ---
 

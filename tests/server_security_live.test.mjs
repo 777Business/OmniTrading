@@ -98,4 +98,60 @@ describe('Live Server Security & CSRF Suite', () => {
     const data = await res.json();
     assert.equal(data.validated, true);
   });
+
+  test('GET /api/market/bars returns candlestick history for Forex & Gold', async () => {
+    const fxRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/market/bars?symbol=EURUSD&timeframe=15`);
+    assert.equal(fxRes.status, 200);
+    const fxData = await fxRes.json();
+    assert.equal(fxData.symbol, 'EURUSD');
+    assert.ok(Array.isArray(fxData.bars));
+    assert.ok(fxData.bars.length > 0);
+    assert.ok(fxData.bars[0].open > 0);
+    assert.ok(fxData.bars[0].close > 0);
+
+    const goldRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/market/bars?symbol=XAUUSD&timeframe=5`);
+    assert.equal(goldRes.status, 200);
+    const goldData = await goldRes.json();
+    assert.equal(goldData.symbol, 'XAUUSD');
+    assert.ok(goldData.bars.length > 0);
+  });
+
+  test('GET /api/market/quote returns live bid, ask, and price', async () => {
+    const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/market/quote?symbol=EURUSD`);
+    assert.equal(res.status, 200);
+    const quote = await res.json();
+    assert.equal(quote.symbol, 'EURUSD');
+    assert.ok(quote.bid > 0);
+    assert.ok(quote.ask > 0);
+    assert.ok(quote.ask >= quote.bid);
+  });
+
+  test('POST /api/brokers/save and GET /api/brokers/saved manage broker configurations', async () => {
+    const sRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/session`);
+    const sData = await sRes.json();
+    const token = sData.sessionToken;
+
+    // Save IBKR
+    const saveRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/brokers/save`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: `http://127.0.0.1:${TEST_PORT}`,
+        'x-omni-session': token,
+      },
+      body: JSON.stringify({
+        brokerId: 'ibkr',
+        credentials: { accountId: 'DU999888', environment: 'paper' },
+      }),
+    });
+    assert.equal(saveRes.status, 200);
+
+    // Get saved
+    const getRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/brokers/saved`);
+    assert.equal(getRes.status, 200);
+    const getData = await getRes.json();
+    assert.ok(getData.brokers.ibkr);
+    assert.equal(getData.brokers.ibkr.configured, true);
+  });
 });
+

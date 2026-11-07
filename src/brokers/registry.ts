@@ -9,9 +9,14 @@
  * Licensed under the MIT License.
  */
 
-import type { BrokerAdapter, BrokerAccount } from './types';
+import type { BrokerAdapter, BrokerAccount, Position, OrderRequest, OrderResult, ModifyPositionRequest } from './types';
 import { PaperTradingAdapter } from './adapters/paper/adapter';
 import { CTraderAdapter } from './adapters/ctrader/adapter';
+import { IBKRAdapter } from './adapters/ibkr/adapter';
+import { BinanceAdapter } from './adapters/binance/adapter';
+import { AlpacaAdapter } from './adapters/alpaca/adapter';
+import { OandaAdapter } from './adapters/oanda/adapter';
+import { MetaTrader5Adapter } from './adapters/metatrader/adapter';
 
 const PREFS_KEY = 'omni-broker-preferences';
 
@@ -40,6 +45,11 @@ export class BrokerRegistry {
 
     // 2. Register external broker adapters
     this.register(new CTraderAdapter());
+    this.register(new IBKRAdapter());
+    this.register(new BinanceAdapter());
+    this.register(new AlpacaAdapter());
+    this.register(new OandaAdapter());
+    this.register(new MetaTrader5Adapter());
 
     // Restore saved preferences if any
     const prefs = this.loadPreferences();
@@ -107,6 +117,69 @@ export class BrokerRegistry {
     } catch {
       /* ignore */
     }
+  }
+
+  public async getPositions(): Promise<Position[]> {
+    const adapter = this.getActiveAdapter();
+    if (adapter && typeof adapter.getPositions === 'function') {
+      return adapter.getPositions();
+    }
+    return [];
+  }
+
+  public async getOrdersHistory(): Promise<any[]> {
+    const adapter = this.getActiveAdapter();
+    if (adapter && typeof adapter.getOrdersHistory === 'function') {
+      return adapter.getOrdersHistory();
+    }
+    return [];
+  }
+
+  public async placeOrder(order: OrderRequest): Promise<OrderResult> {
+    const adapter = this.getActiveAdapter();
+    if (!adapter || typeof adapter.placeOrder !== 'function') {
+      throw new Error(`Active broker '${adapter?.name || 'unknown'}' does not support order execution.`);
+    }
+    const res = await adapter.placeOrder(order);
+    this.notify();
+    return res;
+  }
+
+  public async modifyPosition(req: ModifyPositionRequest): Promise<void> {
+    const adapter = this.getActiveAdapter();
+    if (adapter && typeof adapter.modifyPosition === 'function') {
+      await adapter.modifyPosition(req);
+      this.notify();
+    }
+  }
+
+  public async closePosition(positionId: string, volume?: number): Promise<void> {
+    const adapter = this.getActiveAdapter();
+    if (adapter && typeof adapter.closePosition === 'function') {
+      await adapter.closePosition(positionId, volume);
+      this.notify();
+    }
+  }
+
+  public async closeAllPositions(): Promise<void> {
+    const adapter = this.getActiveAdapter();
+    if (adapter && typeof adapter.closeAllPositions === 'function') {
+      await adapter.closeAllPositions();
+      this.notify();
+    } else {
+      const positions = await this.getPositions();
+      for (const p of positions) {
+        await this.closePosition(p.id);
+      }
+    }
+  }
+
+  public onPositionChange(cb: (positions: Position[]) => void): () => void {
+    const adapter = this.getActiveAdapter();
+    if (adapter && typeof adapter.onPositionChange === 'function') {
+      return adapter.onPositionChange(cb);
+    }
+    return () => {};
   }
 
   public subscribe(cb: () => void): () => void {
