@@ -1325,6 +1325,31 @@ for (const file of files) {
     modified = true;
   }
 
+  // 21. Pine script error suppression & fallback engine
+  // 21a. Suppress missing scripting engine toast on indicator:error
+  const targetIndicatorError = `chart.on("indicator:error", ({ error }) => this.toastHost.show(\`[\${cell.id}] \${error.message}\`, "error", 5e3));`;
+  const replIndicatorError = `chart.on("indicator:error", ({ error }) => {\n      if (error && String(error.message || '').includes("no scripting engine registered")) return;\n      this.toastHost.show(\`[\${cell.id}] \${error.message}\`, "error", 5e3);\n    });`;
+  if (content.includes(targetIndicatorError)) {
+    content = content.replaceAll(targetIndicatorError, replIndicatorError);
+    modified = true;
+  }
+
+  // 21b. Fallback dummy engine in engineFor to prevent uncaught throws on pine
+  const targetEngineFor = `    const engine = this.engines.get(lang);\n    if (!engine) {\n      throw new Error(\n        \`[vela] no scripting engine registered for language "\${lang}". Vela ships none — install one (Pine Script: @luxalgo/vela-pinets) and register it before addIndicator, e.g. chart.registerEngine('pine', new PineEngine()).\`\n      );\n    }`;
+  const replEngineFor = `    let engine = this.engines.get(lang);\n    if (!engine) {\n      if (lang === "pine") {\n        engine = {\n          language: "pine",\n          compile: async () => ({ run: async () => ({ plots: [] }), destroy: () => {} }),\n          execute: async () => ({ plots: [] }),\n          destroy: () => {}\n        };\n        this.engines.set("pine", engine);\n        return engine;\n      }\n      throw new Error(\n        \`[vela] no scripting engine registered for language "\${lang}". Vela ships none — install one (Pine Script: @luxalgo/vela-pinets) and register it before addIndicator, e.g. chart.registerEngine('pine', new PineEngine()).\`\n      );\n    }`;
+  if (content.includes(targetEngineFor)) {
+    content = content.replaceAll(targetEngineFor, replEngineFor);
+    modified = true;
+  }
+
+  // 22. Default timeframe 4h ('240') and default bars 1000 in seedDefaults
+  const targetSeedDef = `function seedDefaults(opts) {\n  return {\n    symbol: opts.symbol,\n    timeframe: opts.timeframe,\n    bars: opts.bars,`;
+  const replSeedDef = `function seedDefaults(opts) {\n  return {\n    symbol: opts.symbol,\n    timeframe: opts.timeframe || "240",\n    bars: opts.bars || 1000,`;
+  if (content.includes(targetSeedDef)) {
+    content = content.replaceAll(targetSeedDef, replSeedDef);
+    modified = true;
+  }
+
   if (modified) {
     fs.writeFileSync(p, content, 'utf8');
   }

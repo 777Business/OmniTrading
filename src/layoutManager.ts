@@ -289,9 +289,8 @@ export function addChartCell(
     // 2. Identify source cell
     const sourceCell =
       (sourceCellId ? ws.cell(sourceCellId) : null) || workspace.active || currentCells[0];
-    const sourceSymbol = sourceCell?.symbol || 'EURUSD';
-    const sourceTf = sourceCell?.timeframe || '60';
-    const newTf = getComplimentaryTimeframe(sourceTf);
+    const sourceSymbol = sourceCell?.symbol || 'BTCUSDT';
+    const sourceTf = sourceCell?.timeframe || '240';
 
     // 3. Find unique new cell ID
     const usedIds = new Set([
@@ -312,14 +311,28 @@ export function addChartCell(
     const sourcePriceStyle = (sourceCell as any)?.priceStyle || sourceCell?.chart?.priceStyle || activeState?.priceStyle || 'candles';
     const sourceGridlines = sourceCell?.chart?.renderer?.get?.('gridlines');
 
+    const seedIndicators = activeState?.indicators
+      ? JSON.parse(JSON.stringify(activeState.indicators))
+      : { natives: [], manifest: [] };
+
+    // If no Pine engine is present, filter out pine indicators to avoid unhandled engine errors
+    if (seedIndicators && Array.isArray(seedIndicators.manifest)) {
+      if (typeof (window as any).PineWorkerEngine !== 'function') {
+        seedIndicators.manifest = seedIndicators.manifest.filter(
+          (m: any) => m.language !== 'pine' && !String(m.name || '').endsWith('.pine')
+        );
+      }
+    }
+
+    const sourceBars = Number((sourceCell as any)?.bars) || Number((sourceCell as any)?.state?.bars) || 1000;
     const seed = {
       symbol: sourceSymbol,
-      timeframe: newTf,
-      bars: 1500,
+      timeframe: sourceTf,
+      bars: Math.max(1000, sourceBars),
       chartStyle: sourcePriceStyle,
       priceStyle: sourcePriceStyle,
       rendererConfig: sourceConfig ?? activeState?.rendererConfig,
-      indicators: activeState?.indicators ?? { present: [], instanceEntries: [] },
+      indicators: seedIndicators,
     };
     ws.pool.set(nextId, seed);
 
@@ -328,7 +341,7 @@ export function addChartCell(
       ws.order.push(nextId);
     }
 
-    // 6. Inherit or assign color link group (default to 'blue' so they sync immediately)
+    // 6. Inherit or assign color link group
     let sourceGroup = getCellColorGroup(sourceCell?.id);
     if (!sourceGroup || sourceGroup === 'none') {
       sourceGroup = 'blue';
@@ -369,13 +382,14 @@ export function addChartCell(
         newCell.chart.setPriceStyle(sourcePriceStyle);
       }
 
-      // D. Duplicate all indicators from source chart onto new cell
+      // D. Duplicate external / custom indicators from source chart onto new cell
       if (sourceCell?.chart && newCell.chart) {
         const sourceInds = sourceCell.chart.indicators?.() || [];
         const orch = (sourceCell.chart as any).orchestrator;
+
         for (const h of sourceInds) {
-          // If native volume is already on new cell, skip re-adding
-          if (h.nativeType === 'volume' && newCell.chart.indicators().some((x: any) => x.nativeType === 'volume')) {
+          // If already hydrated from seed (e.g. native indicators or same ID), skip
+          if (newCell.chart.indicators().some((x: any) => x.id === h.id || (h.nativeType && x.nativeType === h.nativeType))) {
             continue;
           }
           const rec = orch?.registry?.get?.(h.id);
@@ -408,6 +422,14 @@ export function addChartCell(
       if (sourceCell) {
         syncExistingDrawings(ws, sourceCell, newCell);
       }
+
+      // F. Transfer visible range
+      const sourceRange = sourceCell?.chart?.getVisibleRange?.();
+      if (sourceRange && newCell.chart?.setVisibleRange) {
+        try {
+          newCell.chart.setVisibleRange(sourceRange);
+        } catch {}
+      }
     }
 
     // 10. Readjust and refresh
@@ -426,7 +448,7 @@ export function addChartCell(
     } catch {}
 
     if (onToast) {
-      onToast(`Duplicated ${sourceSymbol} (${newTf}m) in ${sourceGroup.toUpperCase()} group — Multi-Time View Active`);
+      onToast(`Duplicated ${sourceSymbol} (${sourceTf}) with all settings`);
     }
 
     return nextId;
@@ -538,10 +560,19 @@ export function closeCell(
     // 1. Remove from color links
     removeCellFromColorLink(cellId);
 
-    // 2. Filter target out of ws.order
-    ws.order = (ws.order || []).filter((id: string) => id !== cellId);
+    // 2. Identify surviving cells
+    const remainingCells = cells.filter((c: any) => c.id !== cellId);
+    const remainingIds = (ws.order || []).filter((id: string) => id !== cellId);
 
-    // 3. Destroy target cell cleanly
+    // 3. If target cell was active, switch active to a surviving chart first
+    if (ws.activeId === cellId && remainingIds.length > 0) {
+      ws.setActiveCell(remainingIds[0]);
+    }
+
+    // 4. Update order to exclude target
+    ws.order = remainingIds;
+
+    // 5. Cleanly destroy target cell
     if (targetCell) {
       targetCell.destroy();
       ws.cellsById.delete(cellId);
@@ -549,7 +580,7 @@ export function closeCell(
       ws.events.emit('cell:destroyed', { id: cellId });
     }
 
-    // 4. Calculate new layout for surviving count
+    // 6. Calculate new layout for surviving count
     const survivingCount = ws.cellsById.size;
     let targetLayout = '1';
     if (survivingCount <= 1) targetLayout = '1';
@@ -559,22 +590,24 @@ export function closeCell(
     else if (survivingCount <= 6) targetLayout = '6';
     else targetLayout = '8';
 
-    // 5. Apply layout
+    // 7. Apply layout
     ws.setLayout(targetLayout);
 
-    // 6. Ensure active cell points to a surviving chart
+    // 8. Ensure active cell points to a surviving chart
     const survivingCells = ws.cells();
     if (survivingCells.length > 0) {
-      const activeAlive = ws.active && ws.cellsById.has(ws.active.id);
+      const activeAlive = ws.activeId && ws.cellsById.has(ws.activeId);
       if (!activeAlive) {
         ws.setActiveCell(survivingCells[0].id);
+      } else {
+        ws.projectActiveCell?.();
       }
     }
 
-    // 7. Update workspace sync
+    // 9. Update workspace sync
     updateWorkspaceColorSync(workspace);
 
-    // 8. Readjust and refresh
+    // 10. Readjust and refresh
     ws.syncCellPresentation?.();
     ws.refreshCellControls?.();
     window.dispatchEvent(new Event('resize'));
@@ -590,7 +623,7 @@ export function closeCell(
     } catch {}
 
     if (onToast) {
-      onToast(`Closed ${targetSymbol} — Charts Readjusted`);
+      onToast(`Closed ${targetSymbol} — Remaining charts active`);
     }
   } catch (err) {
     console.error('[vela] Failed to close cell cleanly:', err);

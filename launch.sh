@@ -32,7 +32,7 @@ fi
 # Check if server is already running
 if ! curl -sf "$HEALTH_URL" >/dev/null 2>&1; then
   echo "Starting local OmniTrading server on http://${HOST}:${PORT}..."
-  (cd "$APP_DIR" && "$NODE_BIN" "$APP_DIR/server/omni-server.mjs" &)
+  (cd "$APP_DIR" && nohup "$NODE_BIN" "$APP_DIR/server/omni-server.mjs" >/dev/null 2>&1 &)
   
   for _ in $(seq 1 40); do
     if curl -sf "$HEALTH_URL" >/dev/null 2>&1; then

@@ -82,7 +82,8 @@ import * as api from './api';
 import { loadPrefs, savePrefs } from './config';
 
 const PERSIST_KEY = 'omni-workspace';
-const DEFAULT_TIMEFRAME = '60';
+const DEFAULT_TIMEFRAME = '240';
+const DEFAULT_BARS = 1000;
 const DEFAULT_SYMBOL = 'BTCUSDT';
 
 let workspace: VelaWorkspace | null = null;
@@ -255,6 +256,21 @@ try {
     run: () => {
       if (workspace) {
         addChartCell(workspace, workspace.active?.id, showToast);
+      }
+    },
+  });
+
+  registerWidgetAction({
+    id: 'close-chart',
+    target: 'context:body',
+    label: '✕ Close Chart',
+    order: -39.5,
+    when: () => {
+      return Boolean(workspace && workspace.cells().length > 1);
+    },
+    run: () => {
+      if (workspace && workspace.active) {
+        closeCell(workspace, workspace.active.id, showToast);
       }
     },
   });
@@ -519,11 +535,12 @@ function attachCellControls(ws: VelaWorkspace): void {
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
       addBtn.className = 'vela-corner-btn add-btn';
-      addBtn.title = 'Add Chart / Split View (Multi-Timeframe Sync)';
+      addBtn.title = 'Duplicate Chart (All Settings)';
       addBtn.innerHTML = '+';
       addBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        addChartCell(ws, cell.id, showToast);
+        const targetId = bar?.dataset.cellId || cell.id;
+        addChartCell(ws, targetId, showToast);
       });
       bar.appendChild(addBtn);
 
@@ -535,7 +552,8 @@ function attachCellControls(ws: VelaWorkspace): void {
       closeBtn.innerHTML = '✕';
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        closeCell(ws, cell.id, showToast);
+        const targetId = bar?.dataset.cellId || cell.id;
+        closeCell(ws, targetId, showToast);
       });
       bar.appendChild(closeBtn);
 
@@ -545,6 +563,8 @@ function attachCellControls(ws: VelaWorkspace): void {
       bar.dataset.cellId = cell.id;
       const cornerBadge = bar.querySelector('.omni-link-badge-corner') as HTMLElement | null;
       if (cornerBadge) cornerBadge.dataset.cellId = cell.id;
+      const closeBtn = bar.querySelector('.close-btn') as HTMLElement | null;
+      if (closeBtn) closeBtn.title = `Close ${cell.symbol || 'chart'}`;
     }
 
     // Toggle close button visibility based on cell count
@@ -677,7 +697,7 @@ async function mountApp(initialSymbol?: string, initialTf?: string): Promise<voi
     layout: '1',
     symbol: sym,
     timeframe: tf,
-    bars: 1500,
+    bars: DEFAULT_BARS,
     live: true,
     theme: themePreset || 'dark',
     watermark: true, // MANDATORY: Attribution watermark kept permanently visible
@@ -685,15 +705,25 @@ async function mountApp(initialSymbol?: string, initialTf?: string): Promise<voi
       default: () => dataProvider,
       [adapter.id]: () => dataProvider,
     },
-    ...(typeof (window as any).PineWorkerEngine === 'function'
-      ? {
-          engines: {
-            pine: () => new (window as any).PineWorkerEngine(),
-          },
+    engines: {
+      pine: () => {
+        if (typeof (window as any).PineWorkerEngine === 'function') {
+          return new (window as any).PineWorkerEngine();
         }
-      : {}),
+        return {
+          language: 'pine',
+          compile: async () => ({
+            run: async () => ({ plots: [] }),
+            destroy: () => {},
+          }),
+          execute: async () => ({ plots: [] }),
+          destroy: () => {},
+        };
+      },
+    },
     indicators: '/api/indicators',
     timeframes: ['1', '3', '5', '15', '30', '60', '120', '240', 'D', 'W', 'M'],
+    timeframeFavorites: ['1', '5', '15', '60', '240', 'D'],
     sync: {
       viewport: false,
       crosshair: false,
@@ -712,6 +742,8 @@ async function mountApp(initialSymbol?: string, initialTf?: string): Promise<voi
 
   (window as any).omni = workspace;
   (window as any).vela = workspace;
+  (window as any).omniWorkspace = workspace;
+  (window as any).workspace = workspace;
 
   initWorkspaceFeatures(workspace);
   mountTopbarControls();
@@ -975,59 +1007,13 @@ function normalizeTf(tf: string): string {
   return map[tf] || tf;
 }
 
-function showQuickTimeframeSwitcher(initialChar: string): void {
-  const existing = document.getElementById('omni-quick-tf-modal');
-  existing?.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'omni-quick-tf-modal';
-  modal.className = 'omni-quick-tf-modal';
-  modal.innerHTML = `
-    <div class="omni-quick-tf-title" style="font-weight:700; font-size:12px; color:#94a3b8; margin-bottom:6px;">Change Interval</div>
-    <input type="text" class="omni-quick-tf-input" value="${initialChar}" maxlength="6" autofocus style="background:#0f172a; border:1px solid #334155; color:#f8fafc; font-size:14px; font-weight:700; padding:6px 10px; border-radius:6px; width:120px; outline:none;" />
-    <div class="omni-quick-tf-hint" style="font-size:11px; color:#64748b; margin-top:6px;">Press Enter to change interval (1, 5, 15, 60, 240, D, W, M)</div>
-  `;
-
-  document.body.appendChild(modal);
-
-  const input = modal.querySelector('.omni-quick-tf-input') as HTMLInputElement;
-  input.focus();
-  input.setSelectionRange(input.value.length, input.value.length);
-
-  const close = () => modal.remove();
-
-  input.addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (e.key === 'Escape') {
-      close();
-    } else if (e.key === 'Enter') {
-      const val = input.value.trim().toUpperCase();
-      if (!val) {
-        close();
-        return;
-      }
-      const tf = normalizeTf(val);
-      if (workspace && workspace.active) {
-        try {
-          workspace.active.setTimeframe(tf);
-          showToast(`Interval changed to ${val}`);
-        } catch (err) {
-          console.error('[omni] Failed to set interval', err);
-        }
-      }
-      close();
-    }
-  });
-
-  const onDocClick = (e: MouseEvent) => {
-    if (!modal.contains(e.target as Node)) {
-      close();
-      document.removeEventListener('pointerdown', onDocClick);
-    }
-  };
-  setTimeout(() => {
-    document.addEventListener('pointerdown', onDocClick);
-  }, 50);
+function formatTfDisplay(tf: string): string {
+  const n = parseInt(tf, 10);
+  if (isNaN(n)) return tf;
+  if (n < 60) return `${n}m`;
+  if (n % 1440 === 0) return `${n / 1440}D`;
+  if (n % 60 === 0) return `${n / 60}h`;
+  return `${n}m`;
 }
 
 document.addEventListener('keydown', (event) => {
@@ -1091,42 +1077,38 @@ document.addEventListener('keydown', (event) => {
     return;
   }
 
-  // ArrowUp / ArrowDown timeframe stepping
+  // ArrowUp / ArrowDown timeframe stepping (only when not interacting with open menus/modals)
   if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    // If a menu, popover, or modal is open in the DOM, let native/Zag keyboard navigation work without interference
+    const isMenuOrModalOpen = !!document.querySelector(
+      '[role="menu"], [data-scope="menu"], [data-part="content"], [data-part="positioner"], .vela-dropdown-menu, .vela-widget-tf-menu, .vela-popover, .omni-modal, .ct-modal, dialog[open]'
+    );
+    if (isMenuOrModalOpen) {
+      return;
+    }
+
     if (workspace && workspace.active) {
       const current = normalizeTf(workspace.active.timeframe || DEFAULT_TIMEFRAME);
       let idx = TIMEFRAMES_STEP.indexOf(current);
       if (idx === -1) {
-        const curNum = parseInt(current, 10) || 60;
+        const curNum = parseInt(current, 10) || 240;
         idx = TIMEFRAMES_STEP.findIndex((t) => parseInt(t, 10) >= curNum);
-        if (idx === -1) idx = 7;
+        if (idx === -1) idx = 9;
       }
 
       if (event.key === 'ArrowUp' && idx < TIMEFRAMES_STEP.length - 1) {
         event.preventDefault();
         const next = TIMEFRAMES_STEP[idx + 1];
         workspace.active.setTimeframe(next);
-        showToast(`Timeframe: ${next}m`);
+        showToast(`Timeframe: ${formatTfDisplay(next)}`);
       } else if (event.key === 'ArrowDown' && idx > 0) {
         event.preventDefault();
         const prev = TIMEFRAMES_STEP[idx - 1];
         workspace.active.setTimeframe(prev);
-        showToast(`Timeframe: ${prev}m`);
+        showToast(`Timeframe: ${formatTfDisplay(prev)}`);
       }
     }
     return;
-  }
-
-  // Direct numeric / letter timeframe switcher
-  if (!event.ctrlKey && !event.altKey && !event.metaKey) {
-    if (
-      (event.key >= '0' && event.key <= '9') ||
-      ['d', 'w', 'm'].includes(event.key.toLowerCase())
-    ) {
-      event.preventDefault();
-      showQuickTimeframeSwitcher(event.key);
-      return;
-    }
   }
 });
 
