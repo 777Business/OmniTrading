@@ -232,6 +232,9 @@ export class QuickTradeWidget {
           <span class="omni-qt-lbl">BUY</span>
           <span class="omni-qt-price qt-ask-price">${askStr}</span>
         </button>
+        <button type="button" class="omni-qt-instant-toggle btn-instant-toggle ${this.prefs.instantExecution ? 'active' : ''}" title="${this.prefs.instantExecution ? 'One-Click Trading is ON (instant execution)' : 'One-Click Trading is OFF (orders require confirmation)'}">
+          ⚡ 1-Click
+        </button>
         <button type="button" class="omni-qt-toggle-panel btn-toggle-panel" title="SL / TP Settings">
           ${this.prefs.minimized ? '▼' : '▲'}
         </button>
@@ -255,7 +258,7 @@ export class QuickTradeWidget {
         <div class="omni-qt-row omni-qt-instant-row">
           <label class="omni-qt-check" title="Skip confirmation dialog and execute immediately">
             <input type="checkbox" class="cb-instant" ${this.prefs.instantExecution ? 'checked' : ''} />
-            <span style="color:#fbbf24;">⚡ One-Click Trading</span>
+            <span style="color:var(--vela-accent, #22d3a5); font-weight:700;">⚡ One-Click Trading</span>
           </label>
         </div>
       </div>
@@ -296,6 +299,18 @@ export class QuickTradeWidget {
       savePrefs(this.prefs);
     });
 
+    // 1-Click toggle on bar
+    this.el.querySelector('.btn-instant-toggle')?.addEventListener('click', () => {
+      this.prefs.instantExecution = !this.prefs.instantExecution;
+      savePrefs(this.prefs);
+      this.toast(
+        this.prefs.instantExecution
+          ? '⚡ One-Click Trading enabled (instant execution)'
+          : '🛡️ One-Click Trading disabled (order confirmation active)'
+      );
+      this.render();
+    });
+
     // Toggle panel
     this.el.querySelector('.btn-toggle-panel')?.addEventListener('click', () => {
       this.prefs.minimized = !this.prefs.minimized;
@@ -330,6 +345,12 @@ export class QuickTradeWidget {
     cbInstant?.addEventListener('change', () => {
       this.prefs.instantExecution = cbInstant.checked;
       savePrefs(this.prefs);
+      this.toast(
+        this.prefs.instantExecution
+          ? '⚡ One-Click Trading enabled (instant execution)'
+          : '🛡️ One-Click Trading disabled (order confirmation active)'
+      );
+      this.render();
     });
 
     // Buy / Sell execution
@@ -421,7 +442,7 @@ export class QuickTradeWidget {
     modal.style.zIndex = '999999';
 
     const sideLabel = params.side.toUpperCase();
-    const sideColor = params.side === 'buy' ? '#22c55e' : '#ef4444';
+    const sideColor = params.side === 'buy' ? '#089981' : '#f23645';
     const digits = this.symbolSpec.digits;
 
     const registry = BrokerRegistry.getInstance();
@@ -431,49 +452,56 @@ export class QuickTradeWidget {
     const env = account?.environment || 'paper';
 
     modal.innerHTML = `
-      <div class="ct-card" style="max-width:440px; padding:22px; background:#0f172a; border: 1px solid #334155; border-radius:12px; box-shadow:0 25px 60px rgba(0,0,0,0.8);">
-        <header class="ct-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding-bottom:12px;">
+      <div class="ct-card" style="max-width:440px; padding:22px; background:var(--vela-surface-elev, #1a1d24); border: 1px solid var(--vela-border, #263039); border-radius:12px; box-shadow:0 25px 60px rgba(0,0,0,0.8);">
+        <header class="ct-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--vela-border, #263039); padding-bottom:12px;">
           <div>
             <h2 style="margin:0; font-size:16px; font-weight:700; color:#f8fafc; display:flex; align-items:center; gap:8px;">
               <span>Confirm Order</span>
-              <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:${env === 'live' ? 'rgba(239,68,68,0.2)' : 'rgba(56,189,248,0.2)'}; color:${env === 'live' ? '#ef4444' : '#38bdf8'}; font-weight:700;">
+              <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:${env === 'live' ? 'rgba(239,68,68,0.2)' : 'rgba(34,211,165,0.15)'}; color:${env === 'live' ? '#ef4444' : 'var(--vela-accent, #22d3a5)'}; font-weight:700;">
                 ${brokerName} (${env.toUpperCase()})
               </span>
             </h2>
-            <p style="margin:3px 0 0 0; font-size:12px; color:#94a3b8;">Manual order execution</p>
+            <p style="margin:3px 0 0 0; font-size:12px; color:var(--vela-fg-muted, #8b98a5);">Manual order execution</p>
           </div>
-          <button type="button" class="ct-btn-close btn-cancel" style="background:none; border:none; color:#94a3b8; font-size:18px; cursor:pointer;">✕</button>
+          <button type="button" class="ct-btn-close btn-cancel" style="background:none; border:none; color:var(--vela-fg-muted, #8b98a5); font-size:18px; cursor:pointer;">✕</button>
         </header>
 
         <div style="margin:16px 0; display:flex; flex-direction:column; gap:10px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:${params.side === 'buy' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)'}; border:1px solid ${params.side === 'buy' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}; border-radius:6px;">
-            <span style="color:#94a3b8; font-size:13px; font-weight:600;">Action</span>
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:${params.side === 'buy' ? 'rgba(8,153,129,0.12)' : 'rgba(242,54,69,0.12)'}; border:1px solid ${params.side === 'buy' ? 'rgba(8,153,129,0.35)' : 'rgba(242,54,69,0.35)'}; border-radius:6px;">
+            <span style="color:var(--vela-fg-muted, #8b98a5); font-size:13px; font-weight:600;">Action</span>
             <strong style="color:${sideColor}; font-size:15px; font-weight:800;">${sideLabel} ${params.lots.toFixed(2)} Lots</strong>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 14px;">
-            <span style="color:#94a3b8; font-size:13px;">Instrument</span>
-            <strong style="color:#f8fafc; font-size:14px;">${params.symbol}</strong>
+            <span style="color:var(--vela-fg-muted, #8b98a5); font-size:13px;">Instrument</span>
+            <strong style="color:var(--vela-fg-bright, #f8fafc); font-size:14px;">${params.symbol}</strong>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 14px;">
-            <span style="color:#94a3b8; font-size:13px;">Estimated Fill Price</span>
-            <strong style="color:#38bdf8; font-size:14px;">${params.estPrice > 0 ? params.estPrice.toFixed(digits) : 'Market Price'}</strong>
+            <span style="color:var(--vela-fg-muted, #8b98a5); font-size:13px;">Estimated Fill Price</span>
+            <strong style="color:var(--vela-accent, #22d3a5); font-size:14px;">${params.estPrice > 0 ? params.estPrice.toFixed(digits) : 'Market Price'}</strong>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 14px;">
-            <span style="color:#94a3b8; font-size:13px;">Stop Loss</span>
+            <span style="color:var(--vela-fg-muted, #8b98a5); font-size:13px;">Stop Loss</span>
             <span style="color:#f87171; font-weight:600; font-size:13px;">
               ${params.stopLoss ? `${params.stopLoss.toFixed(digits)} (${this.prefs.slPips} pips)` : 'None'}
             </span>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 14px;">
-            <span style="color:#94a3b8; font-size:13px;">Take Profit</span>
-            <span style="color:#4ade80; font-weight:600; font-size:13px;">
+            <span style="color:var(--vela-fg-muted, #8b98a5); font-size:13px;">Take Profit</span>
+            <span style="color:#22d3a5; font-weight:600; font-size:13px;">
               ${params.takeProfit ? `${params.takeProfit.toFixed(digits)} (${this.prefs.tpPips} pips)` : 'None'}
             </span>
           </div>
         </div>
 
+        <div style="margin:14px 0 6px 0; padding:10px 14px; background:var(--vela-surface-sunken, #0b0e11); border:1px solid var(--vela-border, #263039); border-radius:6px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--vela-fg, #cbd5e1); cursor:pointer; user-select:none;">
+            <input type="checkbox" class="cb-dont-ask-again" />
+            <span>Don't ask again (Enable One-Click Trading)</span>
+          </label>
+        </div>
+
         <footer style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
-          <button type="button" class="btn-cancel" style="background:#1e293b; color:#cbd5e1; border:1px solid #334155; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">Cancel</button>
+          <button type="button" class="btn-cancel" style="background:var(--vela-surface-sunken, #0b0e11); color:var(--vela-fg, #cbd5e1); border:1px solid var(--vela-border, #263039); padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">Cancel</button>
           <button type="button" class="btn-confirm" style="background:${sideColor}; color:#fff; border:none; padding:8px 20px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:700;">
             Confirm ${sideLabel}
           </button>
@@ -484,6 +512,12 @@ export class QuickTradeWidget {
     modal.querySelector('.btn-cancel')?.addEventListener('click', () => modal.remove());
     modal.querySelector('.ct-btn-close')?.addEventListener('click', () => modal.remove());
     modal.querySelector('.btn-confirm')?.addEventListener('click', async () => {
+      const dontAsk = (modal.querySelector('.cb-dont-ask-again') as HTMLInputElement)?.checked;
+      if (dontAsk) {
+        this.prefs.instantExecution = true;
+        savePrefs(this.prefs);
+        this.render();
+      }
       const btn = modal.querySelector('.btn-confirm') as HTMLButtonElement;
       if (btn) {
         btn.disabled = true;

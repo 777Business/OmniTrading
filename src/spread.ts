@@ -24,6 +24,15 @@ export class SpreadVisualizer {
   private askLabel: HTMLElement | null = null;
   private spreadLabel: HTMLElement | null = null;
   private unsubs: Array<() => void> = [];
+  private rafId: number | null = null;
+
+  private renderThrottled = () => {
+    if (this.rafId !== null) return;
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null;
+      if (this.enabled) this.render();
+    });
+  };
 
   constructor(private readonly getWorkspace: () => VelaWorkspace | null) {
     try {
@@ -88,7 +97,7 @@ export class SpreadVisualizer {
         this.lastTick = detail;
         this.updateChip();
         if (this.enabled) {
-          this.render();
+          this.renderThrottled();
         }
       }
     };
@@ -102,7 +111,7 @@ export class SpreadVisualizer {
 
     // Listen for window resize
     const onResize = () => {
-      if (this.enabled) this.render();
+      if (this.enabled) this.renderThrottled();
     };
     window.addEventListener('resize', onResize);
     this.unsubs.push(() => window.removeEventListener('resize', onResize));
@@ -116,10 +125,10 @@ export class SpreadVisualizer {
     // Listen for cell viewport change to keep spread lines aligned with price axis
     try {
       cell.chart?.on?.('viewport:changed', () => {
-        if (this.enabled) this.render();
+        if (this.enabled) this.renderThrottled();
       });
       cell.chart?.on?.('render', () => {
-        if (this.enabled) this.render();
+        if (this.enabled) this.renderThrottled();
       });
     } catch {
       /* ignore */
@@ -386,6 +395,10 @@ export class SpreadVisualizer {
   }
 
   private teardownOverlay(): void {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
     this.overlaySvg?.remove();
     this.overlaySvg = null;
     this.bidLine = null;

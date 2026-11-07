@@ -72,20 +72,22 @@ export class FootprintDataManager {
   }
 
   public recordLiveTrade(time: number, price: number, buyVol: number, sellVol: number): void {
-    // Find bucket matching bar or forming bucket (within 1 minute)
-    let closestTime = 0;
-    for (const key of this.barsData.keys()) {
-      if (Math.abs(time - key) < 60_000) {
-        closestTime = key;
-        break;
-      }
-    }
-    if (!closestTime) {
-      closestTime = Math.floor(time / 60_000) * 60_000;
-    }
+    // Fast O(1) mathematical bucket lookup (1-minute bucketing)
+    const bucketTime = Math.floor(time / 60_000) * 60_000;
+    const closestTime = this.barsData.has(bucketTime)
+      ? bucketTime
+      : this.barsData.has(bucketTime - 60_000)
+      ? bucketTime - 60_000
+      : bucketTime;
 
     let fpBar = this.barsData.get(closestTime);
     if (!fpBar) {
+      // Evict oldest bar if cache exceeds 1,000 bars
+      if (this.barsData.size >= 1000) {
+        const oldest = this.barsData.keys().next().value;
+        if (oldest !== undefined) this.barsData.delete(oldest);
+      }
+
       const tickSize = this.estimateTickSize(price);
       fpBar = {
         time: closestTime,
@@ -197,6 +199,10 @@ export class FootprintDataManager {
       tickSize: actualStep,
     };
 
+    if (this.barsData.size >= 1000) {
+      const oldest = this.barsData.keys().next().value;
+      if (oldest !== undefined) this.barsData.delete(oldest);
+    }
     this.barsData.set(bar.time, fpBar);
     return fpBar;
   }
@@ -217,6 +223,7 @@ export class FootprintDataManager {
 class FootprintRendererLayer {
   private canvas: HTMLCanvasElement | null = null;
   private dataManager = FootprintDataManager.getInstance();
+  private wasActive = false;
 
   public mount(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
@@ -227,13 +234,17 @@ class FootprintRendererLayer {
     const ctx = this.canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear entire canvas
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
     // Only paint when Footprint chart style is active
     if (args.priceStyle !== 'footprint') {
+      if (this.wasActive) {
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.wasActive = false;
+      }
       return;
     }
+
+    this.wasActive = true;
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     const dpr = args.coords.dpr || 1;
     ctx.save();

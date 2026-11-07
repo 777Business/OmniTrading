@@ -9,10 +9,13 @@ export interface PriceAlert {
   triggered: boolean;
   drawingId?: string;
   cellId?: string;
+  lineColor?: string;
+  textColor?: string;
 }
 
 const ALERTS_STORAGE_KEY = 'omni-price-alerts';
 
+let cachedAlerts: PriceAlert[] | null = null;
 const symbolLastPrices = new Map<string, number>();
 
 export function recordCurrentPrice(symbol: string, price: number): void {
@@ -53,15 +56,20 @@ export function updateTopbarAlertBadge(): void {
 }
 
 export function getAlerts(): PriceAlert[] {
+  if (cachedAlerts !== null) {
+    return cachedAlerts;
+  }
   try {
     const raw = localStorage.getItem(ALERTS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    cachedAlerts = raw ? JSON.parse(raw) : [];
   } catch {
-    return [];
+    cachedAlerts = [];
   }
+  return cachedAlerts!;
 }
 
 export function saveAlerts(alerts: PriceAlert[]): void {
+  cachedAlerts = alerts;
   try {
     localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify(alerts));
     updateTopbarAlertBadge();
@@ -340,7 +348,7 @@ export function createOmniAlertDrawing(
   try {
     const alSettings = getAlertsSettings();
     if (alSettings.alertLines === false) return null;
-    const col = alSettings.alertLineColor || '#ff9800';
+    const col = alSettings.alertLineColor || '#22d3a5';
 
     const drawing = chart.drawings.add('hline', {
       anchors: [{ time: Date.now(), price }],
@@ -509,7 +517,7 @@ export function openAlertEditPrompt(
             anchors: [{ time: Date.now(), price: newPrice }],
             text: {
               value: `⏰ ${alert.symbol} (${newPrice.toFixed(5)})`,
-              color: '#ffffff',
+              color: alert.textColor || alert.lineColor || '#22d3a5',
               size: 'small',
               hAlign: 'right',
               vAlign: 'center',
@@ -603,6 +611,8 @@ export function wireCellAlerts(
   if (!chart || (cell as any)._alertsWired) return;
   (cell as any)._alertsWired = true;
 
+  let dragDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   // 1. Draggable Alert Line Update
   chart.on('drawing:edited', ({ id }: { id: string }) => {
     const alerts = getAlerts();
@@ -611,34 +621,56 @@ export function wireCellAlerts(
 
     const all = chart.drawings.all();
     const drawing = all.find((d: any) => d.id === id);
-    if (drawing && drawing.anchors && drawing.anchors[0]) {
-      const newPrice = drawing.anchors[0].price;
-      const curPrice = symbolLastPrices.get(alert.symbol);
-      alert.targetPrice = newPrice;
-      alert.triggered = false;
-      if (curPrice !== undefined) {
-        alert.direction = newPrice >= curPrice ? 'above' : 'below';
+    if (drawing) {
+      let changed = false;
+      if (drawing.text?.color && drawing.text.color !== alert.textColor) {
+        alert.textColor = drawing.text.color;
+        changed = true;
       }
-      saveAlerts(alerts);
-
-      try {
-        chart.drawings.update(id, {
-          style: { lineColor: '#ffffff', lineWidth: 1, lineStyle: 'dotted' },
-          text: {
-            value: `⏰ ${alert.symbol} (${newPrice.toFixed(5)})`,
-            color: '#ffffff',
-            size: 'small',
-            hAlign: 'right',
-            vAlign: 'center',
-            place: 'end',
-            side: 'above',
-          },
-        });
-      } catch {
-        /* ignore */
+      if (drawing.style?.lineColor && drawing.style.lineColor !== alert.lineColor) {
+        alert.lineColor = drawing.style.lineColor;
+        changed = true;
       }
+      if (drawing.anchors && drawing.anchors[0]) {
+        const newPrice = drawing.anchors[0].price;
+        const curPrice = symbolLastPrices.get(alert.symbol);
+        if (Math.abs(newPrice - alert.targetPrice) > 1e-9) {
+          alert.targetPrice = newPrice;
+          alert.triggered = false;
+          if (curPrice !== undefined) {
+            alert.direction = newPrice >= curPrice ? 'above' : 'below';
+          }
+          changed = true;
 
-      toast(`🔔 Alert adjusted to ${newPrice.toFixed(5)}`);
+          if (dragDebounceTimer !== null) {
+            clearTimeout(dragDebounceTimer);
+          }
+          dragDebounceTimer = setTimeout(() => {
+            dragDebounceTimer = null;
+            saveAlerts(alerts);
+            try {
+              chart.drawings.update(id, {
+                style: { lineColor: alert.lineColor || drawing.style?.lineColor || '#22d3a5', lineWidth: drawing.style?.lineWidth ?? 1, lineStyle: drawing.style?.lineStyle ?? 'dotted' },
+                text: {
+                  value: `⏰ ${alert.symbol} (${newPrice.toFixed(5)})`,
+                  color: alert.textColor || alert.lineColor || '#22d3a5',
+                  size: drawing.text?.size ?? 'small',
+                  hAlign: 'right',
+                  vAlign: 'center',
+                  place: 'end',
+                  side: 'above',
+                },
+              });
+            } catch {
+              /* ignore */
+            }
+            toast(`🔔 Alert adjusted to ${newPrice.toFixed(5)}`);
+          }, 250);
+        }
+      }
+      if (changed && dragDebounceTimer === null) {
+        saveAlerts(alerts);
+      }
     }
   });
 
@@ -799,10 +831,10 @@ export function openManageAlertsModal(
               try {
                 cell.chart.drawings.update(alert.drawingId!, {
                   anchors: [{ time: Date.now(), price: newPrice }],
-                  style: { lineColor: '#ffffff', lineWidth: 1, lineStyle: 'dotted' },
+                  style: { lineColor: alert.lineColor || '#22d3a5', lineWidth: 1, lineStyle: 'dotted' },
                   text: {
                     value: `⏰ ${alert.symbol} (${newPrice.toFixed(5)})`,
-                    color: '#ffffff',
+                    color: alert.textColor || alert.lineColor || '#22d3a5',
                     size: 'small',
                     hAlign: 'right',
                     vAlign: 'center',

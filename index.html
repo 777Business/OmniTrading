@@ -74,7 +74,7 @@
         color: #ffffff;
       }
       .vela-corner-btn.add-btn:hover {
-        background: #2563eb;
+        background: #089981;
         color: #ffffff;
       }
       .vela-corner-btn.close-btn:hover {
@@ -208,13 +208,13 @@
         transition: all 0.15s ease;
       }
       .vela-dtb-spread-btn:hover svg {
-        stroke: #38bdf8 !important;
+        stroke: var(--vela-accent, #22d3a5) !important;
       }
       .vela-dtb-spread-btn.active svg {
-        stroke: #38bdf8 !important;
+        stroke: var(--vela-accent, #22d3a5) !important;
       }
       .vela-bottom-spread-pill:hover {
-        border-color: #38bdf8 !important;
+        border-color: var(--vela-accent, #22d3a5) !important;
       }
 
       /* ---- Watchlist Dock Styles ---- */
@@ -243,16 +243,16 @@
         gap: 6px;
       }
       .vw-text-btn {
-        background: rgba(56, 189, 248, 0.1);
-        border: 1px solid rgba(56, 189, 248, 0.3);
-        color: #38bdf8;
+        background: rgba(34, 211, 165, 0.1);
+        border: 1px solid rgba(34, 211, 165, 0.3);
+        color: var(--vela-accent, #22d3a5);
         border-radius: 4px;
         font-size: 11px;
         font-weight: 600;
         padding: 2px 7px;
         cursor: pointer;
       }
-      .vw-text-btn:hover { background: rgba(56, 189, 248, 0.2); }
+      .vw-text-btn:hover { background: rgba(34, 211, 165, 0.2); }
       .vw-icon-btn {
         background: none;
         border: none;
@@ -319,11 +319,11 @@
         border-color: #cbd5e1;
         color: #0f172a;
       }
-      .vw-input:focus { border-color: #38bdf8; }
+      .vw-input:focus { border-color: var(--vela-accent, #22d3a5); }
       .vw-add-btn {
         height: 28px;
         padding: 0 10px;
-        background: #2563eb;
+        background: #089981;
         border: none;
         border-radius: 5px;
         color: #ffffff;
@@ -403,14 +403,14 @@
       .vw-row:hover { background: rgba(255, 255, 255, 0.04); }
       [data-theme="light"] .vw-row:hover { background: #f8fafc; }
       .vw-row.active {
-        background: rgba(56, 189, 248, 0.12);
-        border-left: 3px solid #38bdf8;
+        background: rgba(34, 211, 165, 0.12);
+        border-left: 3px solid var(--vela-accent, #22d3a5);
       }
       .vw-row.dragging, .vw-section.dragging {
         opacity: 0.35;
       }
       .vw-row.drag-target, .vw-section.drag-target {
-        border-top: 2px solid #38bdf8 !important;
+        border-top: 2px solid var(--vela-accent, #22d3a5) !important;
       }
       .vcol-sym-val {
         flex: 1;
@@ -474,11 +474,11 @@
       [data-theme="light"] .vw-ctx-item { color: #334155; }
       .vw-ctx-item:hover {
         background: rgba(255, 255, 255, 0.07);
-        color: #38bdf8;
+        color: var(--vela-accent, #22d3a5);
       }
       [data-theme="light"] .vw-ctx-item:hover {
         background: #f1f5f9;
-        color: #0284c7;
+        color: #089981;
       }
       .vw-ctx-item.text-danger { color: #f87171; }
       .vw-ctx-item.text-danger:hover { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
@@ -654,7 +654,7 @@
         z-index: 10;
       }
       .vela-topbar-spread-chip:hover {
-        border-color: #38bdf8;
+        border-color: var(--vela-accent, #22d3a5);
       }
       .vela-topbar-spread-chip .vela-spread-dot {
         display: inline-block;
@@ -833,9 +833,9 @@
         border-color: rgba(245, 158, 11, 0.3);
       }
       .omni-alert-btn-restart {
-        background: rgba(56, 189, 248, 0.15);
-        color: #38bdf8;
-        border-color: rgba(56, 189, 248, 0.3);
+        background: rgba(34, 211, 165, 0.15);
+        color: var(--vela-accent, #22d3a5);
+        border-color: rgba(34, 211, 165, 0.3);
       }
 
       /* ---- Alert Line Inline Pill/Button ---- */
@@ -930,8 +930,8 @@
         position: absolute;
         top: 2px;
         right: 2px;
-        background: #2563eb;
-        color: #ffffff;
+        background: var(--vela-accent, #22d3a5);
+        color: #0b0e11;
         font-size: 9px;
         font-weight: 700;
         border-radius: 9999px;
@@ -943,7 +943,7 @@
         padding: 0 3px;
         line-height: 1;
         pointer-events: none;
-        box-shadow: 0 0 6px rgba(37, 99, 235, 0.6);
+        box-shadow: 0 0 6px rgba(34, 211, 165, 0.6);
       }
 
       /* ---- Quick Buy / Sell Trading Widget ---- */
@@ -1004,12 +1004,37 @@
         filter: brightness(0.9);
       }
       .omni-qt-sell {
-        background: #ef5350;
+        background: #f23645;
         color: #ffffff;
       }
       .omni-qt-buy {
-        background: #2563eb;
+        background: #089981;
         color: #ffffff;
+      }
+      .omni-qt-instant-toggle {
+        background: transparent;
+        border: none;
+        border-left: 1px solid rgba(255, 255, 255, 0.08);
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+        color: #94a3b8;
+        padding: 0 6px;
+        cursor: pointer;
+        font-size: 9px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        transition: all 0.15s ease;
+        line-height: 1;
+        user-select: none;
+      }
+      .omni-qt-instant-toggle:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .omni-qt-instant-toggle.active {
+        color: var(--vela-accent, #22d3a5);
+        background: rgba(34, 211, 165, 0.15);
       }
       .omni-qt-lbl {
         font-size: 8px;

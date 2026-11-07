@@ -38,13 +38,13 @@ function getBrokerCategory(id: string): string {
 
 function getStatusBadge(adapter: BrokerAdapter, isConnected: boolean): string {
   if (adapter.id === 'paper') {
-    return '<span style="font-size: 10px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.3px;">BUILT-IN</span>';
+    return '<span style="font-size: 10px; background: rgba(34, 211, 165, 0.15); color: var(--vela-accent, #22d3a5); padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.3px;">BUILT-IN</span>';
   }
   if (isConnected) {
     return '<span style="font-size: 10px; background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.3px;">CONNECTED</span>';
   }
   if (adapter.id === 'ctrader' || adapter.id === 'binance' || adapter.id === 'ibkr' || adapter.id === 'oanda' || adapter.id === 'alpaca' || adapter.id === 'metatrader5') {
-    return '<span style="font-size: 10px; background: rgba(99, 102, 241, 0.18); color: #818cf8; padding: 2px 6px; border-radius: 4px; font-weight: 600;">READY</span>';
+    return '<span style="font-size: 10px; background: rgba(148, 163, 184, 0.15); color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-weight: 600;">READY</span>';
   }
   return '<span style="font-size: 10px; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 2px 6px; border-radius: 4px; font-weight: 600;">BETA</span>';
 }
@@ -63,28 +63,28 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
   backdrop.className = 'ct-overlay';
 
   backdrop.innerHTML = `
-    <div class="ct-card" style="max-width: 760px; width: 94vw; max-height: 88vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 14px; background: #0b1120; border: 1px solid #1e293b; box-shadow: 0 30px 80px rgba(0,0,0,0.85); font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <div class="ct-card" style="max-width: 760px; width: 94vw; max-height: 88vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 14px; background: var(--vela-surface-elev, #151619); border: 1px solid var(--vela-border, #2a2b30); box-shadow: 0 30px 80px rgba(0,0,0,0.85); font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
       
       <!-- Modal Header -->
-      <div style="padding: 18px 24px; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; background: #0f172a;">
+      <div style="padding: 18px 24px; border-bottom: 1px solid var(--vela-border, #2a2b30); display: flex; justify-content: space-between; align-items: center; background: var(--vela-surface, #12161c);">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <div style="width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(135deg, #0284c7, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 18px;">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(135deg, #22d3a5, #089981); color: #0b0e11; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800;">
             ⚡
           </div>
           <div>
-            <h2 style="margin: 0; font-size: 17px; font-weight: 700; color: #f8fafc; letter-spacing: -0.2px;">Connect Broker or Platform</h2>
-            <p style="margin: 2px 0 0 0; font-size: 12px; color: #94a3b8;">Choose a broker or paper trading platform. API keys and credentials never leave this device.</p>
+            <h2 style="margin: 0; font-size: 17px; font-weight: 700; color: var(--vela-fg-bright, #f8fafc); letter-spacing: -0.2px;">Connect Broker or Platform</h2>
+            <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--vela-fg-muted, #8b98a5);">Choose a broker or paper trading platform. API keys and credentials never leave this device.</p>
           </div>
         </div>
-        <button type="button" class="btn-close" style="background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; padding: 6px; line-height: 1; border-radius: 6px; transition: background 0.15s ease;">✕</button>
+        <button type="button" class="btn-close" style="background: none; border: none; color: var(--vela-fg-muted, #8b98a5); font-size: 20px; cursor: pointer; padding: 6px; line-height: 1; border-radius: 6px; transition: background 0.15s ease;">✕</button>
       </div>
 
       <!-- Main Body Container -->
       <div style="display: flex; flex: 1; min-height: 440px; overflow: hidden;">
         
         <!-- Left Sidebar: Broker Picker -->
-        <div style="width: 260px; border-right: 1px solid #1e293b; background: #080d1a; padding: 12px 10px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto;">
-          <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; padding: 4px 10px; letter-spacing: 0.6px;">Supported Brokers &amp; Feeds</div>
+        <div style="width: 260px; border-right: 1px solid var(--vela-border, #2a2b30); background: var(--vela-surface-sunken, #0b0e11); padding: 12px 10px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto;">
+          <div style="font-size: 10px; font-weight: 700; color: var(--vela-fg-muted, #8b98a5); text-transform: uppercase; padding: 4px 10px; letter-spacing: 0.6px;">Supported Brokers &amp; Feeds</div>
           
           <div class="broker-list-items" style="display: flex; flex-direction: column; gap: 4px;">
             ${adapters
@@ -95,14 +95,14 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
                 const category = getBrokerCategory(adapter.id);
 
                 return `
-                  <button type="button" class="btn-broker-item" data-id="${adapter.id}" style="width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px; border: 1px solid ${isSelected ? '#38bdf8' : 'transparent'}; background: ${isSelected ? 'rgba(56, 189, 248, 0.12)' : 'transparent'}; color: ${isSelected ? '#f8fafc' : '#cbd5e1'}; cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: all 0.15s ease;">
+                  <button type="button" class="btn-broker-item" data-id="${adapter.id}" style="width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px; border: 1px solid ${isSelected ? 'var(--vela-accent, #22d3a5)' : 'transparent'}; background: ${isSelected ? 'rgba(34, 211, 165, 0.12)' : 'transparent'}; color: ${isSelected ? 'var(--vela-fg-bright, #f8fafc)' : 'var(--vela-fg, #cbd5e1)'}; cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: all 0.15s ease;">
                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                       <strong style="font-size: 13px; font-weight: 600;">${escapeHtml(adapter.name.split('(')[0].trim())}</strong>
                       ${badge}
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                      <span style="font-size: 11px; color: #64748b;">${escapeHtml(category)}</span>
-                      ${isSelected ? '<span style="font-size: 11px; color: #38bdf8; font-weight: 700;">● Active</span>' : ''}
+                      <span style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5);">${escapeHtml(category)}</span>
+                      ${isSelected ? '<span style="font-size: 11px; color: var(--vela-accent, #22d3a5); font-weight: 700;">● Active</span>' : ''}
                     </div>
                   </button>
                 `;
@@ -110,8 +110,8 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
               .join('')}
           </div>
 
-          <div style="margin-top: auto; padding: 10px; border-top: 1px solid #1e293b; font-size: 11px; color: #64748b; line-height: 1.4;">
-            <div style="display: flex; align-items: center; gap: 6px; color: #38bdf8; font-weight: 600; margin-bottom: 2px;">
+          <div style="margin-top: auto; padding: 10px; border-top: 1px solid var(--vela-border, #2a2b30); font-size: 11px; color: var(--vela-fg-muted, #8b98a5); line-height: 1.4;">
+            <div style="display: flex; align-items: center; gap: 6px; color: var(--vela-accent, #22d3a5); font-weight: 600; margin-bottom: 2px;">
               <span>🛡️ 100% Broker-Neutral</span>
             </div>
             Universal architecture. No broker is locked in or promoted.
@@ -119,17 +119,17 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
         </div>
 
         <!-- Right Content Pane: Details & Form -->
-        <div class="omni-adapter-detail" style="flex: 1; padding: 22px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; background: #0b1120;">
+        <div class="omni-adapter-detail" style="flex: 1; padding: 22px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; background: var(--vela-surface-elev, #151619);">
           <!-- Dynamically populated -->
         </div>
       </div>
 
       <!-- Modal Footer -->
-      <div style="padding: 14px 24px; border-top: 1px solid #1e293b; background: #0f172a; display: flex; justify-content: space-between; align-items: center;">
+      <div style="padding: 14px 24px; border-top: 1px solid var(--vela-border, #2a2b30); background: var(--vela-surface, #12161c); display: flex; justify-content: space-between; align-items: center;">
         <button type="button" class="btn-delete-all" style="background: none; border: none; color: #ef4444; font-size: 12px; cursor: pointer; text-decoration: underline; padding: 4px;">
           Clear all saved credentials
         </button>
-        <button type="button" class="btn-cancel" style="background: #1e293b; border: 1px solid #334155; color: #f8fafc; padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
+        <button type="button" class="btn-cancel" style="background: var(--vela-surface-sunken, #0b0e11); border: 1px solid var(--vela-border, #2a2b30); color: var(--vela-fg, #cbd5e1); padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
           Close
         </button>
       </div>
@@ -160,7 +160,7 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
         ${
           adapter.credentialSchema.docsUrl
             ? `
-          <a href="${adapter.credentialSchema.docsUrl}" target="_blank" rel="noreferrer" style="font-size: 12px; color: #38bdf8; text-decoration: none; border: 1px solid #0284c7; padding: 5px 10px; border-radius: 6px; font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">
+          <a href="${adapter.credentialSchema.docsUrl}" target="_blank" rel="noreferrer" style="font-size: 12px; color: var(--vela-accent, #22d3a5); text-decoration: none; border: 1px solid var(--vela-border, #2a2b30); background: var(--vela-surface-sunken, #0b0e11); padding: 5px 10px; border-radius: 6px; font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">
             Docs ↗
           </a>
         `
@@ -172,8 +172,8 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
       ${
         adapter.credentialSchema.instructions
           ? `
-        <div style="padding: 12px 14px; background: rgba(56, 189, 248, 0.07); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; font-size: 12px; color: #94a3b8; line-height: 1.5;">
-          <strong style="color: #38bdf8;">Setup Guide:</strong> ${escapeHtml(adapter.credentialSchema.instructions)}
+        <div style="padding: 12px 14px; background: rgba(34, 211, 165, 0.06); border: 1px solid rgba(34, 211, 165, 0.2); border-radius: 8px; font-size: 12px; color: var(--vela-fg-muted, #8b98a5); line-height: 1.5;">
+          <strong style="color: var(--vela-accent, #22d3a5);">Setup Guide:</strong> ${escapeHtml(adapter.credentialSchema.instructions)}
         </div>
       `
           : ''
@@ -200,12 +200,12 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
       ${
         adapter.credentialSchema.fields.length > 0 && adapter.credentialSchema.authType !== 'none'
           ? `
-        <form class="omni-cred-form" style="display: flex; flex-direction: column; gap: 14px; border-top: 1px solid #1e293b; padding-top: 16px;">
+        <form class="omni-cred-form" style="display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--vela-border, #2a2b30); padding-top: 16px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 11px; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.5px;">
+            <span style="font-size: 11px; font-weight: 700; color: var(--vela-fg, #cbd5e1); text-transform: uppercase; letter-spacing: 0.5px;">
               ${isConnected ? 'Update Credentials' : 'Connect Account'}
             </span>
-            <span style="font-size: 11px; color: #64748b;">Saved locally (chmod 0600)</span>
+            <span style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5);">Saved locally (chmod 0600)</span>
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
@@ -214,8 +214,8 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
                 if (f.type === 'select' && f.options) {
                   return `
                     <div style="display: flex; flex-direction: column; gap: 4px;">
-                      <label style="font-size: 12px; font-weight: 600; color: #94a3b8;">${escapeHtml(f.label)}${f.required ? ' <span style="color:#ef4444;">*</span>' : ''}</label>
-                      <select name="${f.name}" style="padding: 9px 12px; background: #162035; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 13px; outline: none;">
+                      <label style="font-size: 12px; font-weight: 600; color: var(--vela-fg-muted, #8b98a5);">${escapeHtml(f.label)}${f.required ? ' <span style="color:#ef4444;">*</span>' : ''}</label>
+                      <select name="${f.name}" style="padding: 9px 12px; background: var(--vela-surface-sunken, #0b0e11); border: 1px solid var(--vela-border, #2a2b30); border-radius: 6px; color: var(--vela-fg-bright, #f8fafc); font-size: 13px; outline: none;">
                         ${f.options
                           .map(
                             (opt) =>
@@ -223,16 +223,16 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
                           )
                           .join('')}
                       </select>
-                      ${f.helpText ? `<span style="font-size: 11px; color: #64748b;">${escapeHtml(f.helpText)}</span>` : ''}
+                      ${f.helpText ? `<span style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5);">${escapeHtml(f.helpText)}</span>` : ''}
                     </div>
                   `;
                 }
 
                 return `
                   <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <label style="font-size: 12px; font-weight: 600; color: #94a3b8;">${escapeHtml(f.label)}${f.required ? ' <span style="color:#ef4444;">*</span>' : ''}</label>
-                    <input type="${f.type}" name="${f.name}" value="${f.defaultValue || ''}" placeholder="${escapeHtml(f.placeholder || '')}" style="padding: 9px 12px; background: #162035; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 13px; outline: none;" ${f.required ? 'required' : ''} />
-                    ${f.helpText ? `<span style="font-size: 11px; color: #64748b;">${escapeHtml(f.helpText)}</span>` : ''}
+                    <label style="font-size: 12px; font-weight: 600; color: var(--vela-fg-muted, #8b98a5);">${escapeHtml(f.label)}${f.required ? ' <span style="color:#ef4444;">*</span>' : ''}</label>
+                    <input type="${f.type}" name="${f.name}" value="${f.defaultValue || ''}" placeholder="${escapeHtml(f.placeholder || '')}" style="padding: 9px 12px; background: var(--vela-surface-sunken, #0b0e11); border: 1px solid var(--vela-border, #2a2b30); border-radius: 6px; color: var(--vela-fg-bright, #f8fafc); font-size: 13px; outline: none;" ${f.required ? 'required' : ''} />
+                    ${f.helpText ? `<span style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5);">${escapeHtml(f.helpText)}</span>` : ''}
                   </div>
                 `;
               })
@@ -242,7 +242,7 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
           <div class="omni-cred-status" style="font-size: 12px; min-height: 16px;"></div>
 
           <div style="display: flex; gap: 10px; align-items: center;">
-            <button type="submit" style="padding: 9px 20px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; transition: background 0.15s ease;">
+            <button type="submit" style="padding: 9px 20px; background: var(--vela-accent, #22d3a5); color: #0b0e11; border: none; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer; transition: background 0.15s ease;">
               ${isConnected ? 'Save Changes' : 'Connect Broker'}
             </button>
           </div>
@@ -272,10 +272,10 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
                 ? '<span style="background: rgba(239, 68, 68, 0.2); color: #f87171; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">LIVE</span>'
                 : acc.environment === 'demo'
                 ? '<span style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">DEMO</span>'
-                : '<span style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">PAPER</span>';
+                : '<span style="background: rgba(34, 211, 165, 0.15); color: #22d3a5; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">PAPER</span>';
 
             return `
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: ${isAccActive ? 'rgba(56, 189, 248, 0.08)' : '#10192e'}; border: 1px solid ${isAccActive ? '#38bdf8' : '#1e293b'}; border-radius: 8px; transition: border-color 0.15s ease;">
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: ${isAccActive ? 'rgba(34, 211, 165, 0.08)' : 'var(--vela-surface-sunken, #0b0e11)'}; border: 1px solid ${isAccActive ? 'var(--vela-accent, #22d3a5)' : 'var(--vela-border, #2a2b30)'}; border-radius: 8px; transition: border-color 0.15s ease;">
                 <div style="display: flex; flex-direction: column; gap: 3px;">
                   <div style="display: flex; align-items: center; gap: 8px;">
                     <strong style="font-size: 13px; color: #f8fafc;">${escapeHtml(acc.name)}</strong>
@@ -284,10 +284,10 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
                   <div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: #64748b;">
                     <span>Account: <code style="color: #94a3b8; font-family: monospace;">${escapeHtml(String(acc.accountNumber))}</code></span>
                     <span>•</span>
-                    <span>Balance: <strong style="color: #38bdf8;">${escapeHtml(acc.balanceFormatted || `$${acc.balance.toFixed(2)}`)}</strong></span>
+                    <span>Balance: <strong style="color: var(--vela-accent, #22d3a5);">${escapeHtml(acc.balanceFormatted || `$${acc.balance.toFixed(2)}`)}</strong></span>
                   </div>
                 </div>
-                <button type="button" class="btn-select-acc" data-acc-id="${acc.id}" style="padding: 7px 16px; background: ${isAccActive ? '#15803d' : '#0284c7'}; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s ease;">
+                <button type="button" class="btn-select-acc" data-acc-id="${acc.id}" style="padding: 7px 16px; background: ${isAccActive ? '#089981' : 'var(--vela-accent, #22d3a5)'}; color: ${isAccActive ? '#fff' : '#0b0e11'}; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s ease;">
                   ${isAccActive ? '✓ Active' : 'Switch to Account'}
                 </button>
               </div>
@@ -330,7 +330,7 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
         e.preventDefault();
         const statusEl = form.querySelector('.omni-cred-status') as HTMLElement;
         statusEl.textContent = 'Connecting and verifying credentials…';
-        statusEl.style.color = '#38bdf8';
+        statusEl.style.color = 'var(--vela-accent, #22d3a5)';
 
         const formData = new FormData(form);
         const credentials: Record<string, any> = {};
@@ -377,16 +377,12 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
       const id = btn.getAttribute('data-id') || 'paper';
       activeDetailId = id;
 
-      backdrop.querySelectorAll('.btn-broker-item').forEach((b) => {
-        b.setAttribute(
-          'style',
-          b.getAttribute('style')!.replace('#38bdf8', 'transparent').replace('rgba(56, 189, 248, 0.12)', 'transparent'),
-        );
+      backdrop.querySelectorAll<HTMLButtonElement>('.btn-broker-item').forEach((b) => {
+        b.style.borderColor = 'transparent';
+        b.style.backgroundColor = 'transparent';
       });
-      btn.setAttribute(
-        'style',
-        btn.getAttribute('style')!.replace('transparent', '#38bdf8').replace('transparent', 'rgba(56, 189, 248, 0.12)'),
-      );
+      (btn as HTMLButtonElement).style.borderColor = 'var(--vela-accent, #22d3a5)';
+      (btn as HTMLButtonElement).style.backgroundColor = 'rgba(34, 211, 165, 0.12)';
 
       renderDetail(id);
     });

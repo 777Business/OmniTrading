@@ -491,6 +491,11 @@ const indDialogObserver = new MutationObserver((mutations) => {
   for (const m of mutations) {
     for (const node of Array.from(m.addedNodes)) {
       if (!(node instanceof HTMLElement)) continue;
+      // Skip high-frequency chart SVG elements and trade panel/overlay DOM elements
+      if (node.tagName === 'svg' || node.tagName === 'line' || node.tagName === 'rect' || node.tagName === 'path') continue;
+      if (node.classList?.contains('omni-chart-position-badge') || node.classList?.contains('omni-positions-lines-svg')) continue;
+      if (node.closest?.('.omni-trading-panel, .omni-chart-positions-overlay, .vela-statusline')) continue;
+
       const dialog = node.matches?.('.vela-dialog, [class*="indicator"]') ? node : node.querySelector?.('.vela-dialog');
       if (dialog) {
         const titleEl = dialog.querySelector('.vela-dialog-title, [class*="title"]');
@@ -600,7 +605,14 @@ function attachCellControls(ws: VelaWorkspace): void {
 
 // ---- Workspace persistence ------------------------------------------------
 
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function autoSaveWorkspace(ws?: VelaWorkspace | null): void {
+  if (autoSaveTimer !== null) {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+  }
+
   const targetWs = ws || workspace;
   if (!targetWs || (targetWs as any).destroyed) return;
 
@@ -631,7 +643,18 @@ export function autoSaveWorkspace(ws?: VelaWorkspace | null): void {
   }
 }
 
+export function debouncedAutoSaveWorkspace(ws?: VelaWorkspace | null, delayMs = 800): void {
+  if (autoSaveTimer !== null) {
+    clearTimeout(autoSaveTimer);
+  }
+  autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = null;
+    autoSaveWorkspace(ws);
+  }, delayMs);
+}
+
 (window as any).__omniAutoSave = () => autoSaveWorkspace(workspace);
+(window as any).__omniDebouncedAutoSave = (delayMs?: number) => debouncedAutoSaveWorkspace(workspace, delayMs);
 
 // ---- Toast Notifications --------------------------------------------------
 
@@ -799,18 +822,18 @@ function initWorkspaceFeatures(ws: VelaWorkspace): void {
       });
     } catch {}
 
-    // Auto-save listeners on chart changes
+    // Auto-save listeners on chart changes (debounced to eliminate frame drops & drag lag)
     try {
-      cell.chart?.renderer?.onConfigChanged?.(() => autoSaveWorkspace(ws));
-      cell.chart?.on?.('market:changed', () => autoSaveWorkspace(ws));
-      cell.chart?.on?.('priceStyle:change', () => autoSaveWorkspace(ws));
-      cell.chart?.on?.('drawing:created', () => autoSaveWorkspace(ws));
-      cell.chart?.on?.('drawing:edited', () => autoSaveWorkspace(ws));
-      cell.chart?.on?.('drawing:removed', () => autoSaveWorkspace(ws));
-      cell.chart?.on?.('indicator:add', () => autoSaveWorkspace(ws));
-      cell.chart?.on?.('indicator:remove', () => autoSaveWorkspace(ws));
-      cell.chart?.on?.('indicator:change', () => autoSaveWorkspace(ws));
-      cell.chart?.on?.('theme:changed', () => autoSaveWorkspace(ws));
+      cell.chart?.renderer?.onConfigChanged?.(() => debouncedAutoSaveWorkspace(ws));
+      cell.chart?.on?.('market:changed', () => debouncedAutoSaveWorkspace(ws));
+      cell.chart?.on?.('priceStyle:change', () => debouncedAutoSaveWorkspace(ws));
+      cell.chart?.on?.('drawing:created', () => debouncedAutoSaveWorkspace(ws));
+      cell.chart?.on?.('drawing:edited', () => debouncedAutoSaveWorkspace(ws));
+      cell.chart?.on?.('drawing:removed', () => debouncedAutoSaveWorkspace(ws));
+      cell.chart?.on?.('indicator:add', () => debouncedAutoSaveWorkspace(ws));
+      cell.chart?.on?.('indicator:remove', () => debouncedAutoSaveWorkspace(ws));
+      cell.chart?.on?.('indicator:change', () => debouncedAutoSaveWorkspace(ws));
+      cell.chart?.on?.('theme:changed', () => debouncedAutoSaveWorkspace(ws));
     } catch {}
 
     wireCellAlerts(cell, (msg) => showToast(msg), ws);
@@ -827,7 +850,7 @@ function initWorkspaceFeatures(ws: VelaWorkspace): void {
     attachCellControls(ws);
     const cell = ws.cell(id);
     if (cell) configureCell(cell);
-    autoSaveWorkspace(ws);
+    debouncedAutoSaveWorkspace(ws, 400);
   });
 
   ws.on('cell:active', ({ id }: any = {}) => {
@@ -837,7 +860,7 @@ function initWorkspaceFeatures(ws: VelaWorkspace): void {
       spreadVisualizer.attachToCell(cell);
       chartPositionsOverlay.attachToCell(cell);
     }
-    autoSaveWorkspace(ws);
+    debouncedAutoSaveWorkspace(ws, 600);
   });
 
   ws.on('layout:changed', () => {
@@ -850,16 +873,16 @@ function initWorkspaceFeatures(ws: VelaWorkspace): void {
       chartPositionsOverlay.attachToCell(ws.active);
     }
     mountTopbarControls();
-    autoSaveWorkspace(ws);
+    debouncedAutoSaveWorkspace(ws, 400);
   });
 
   ws.on('cell:destroyed', () => {
     attachCellControls(ws);
     updateWorkspaceColorSync(ws);
-    autoSaveWorkspace(ws);
+    debouncedAutoSaveWorkspace(ws, 300);
   });
 
-  ws.on('state:changed', () => autoSaveWorkspace(ws));
+  ws.on('state:changed', () => debouncedAutoSaveWorkspace(ws));
   window.addEventListener('beforeunload', () => autoSaveWorkspace(ws));
   window.addEventListener('pagehide', () => autoSaveWorkspace(ws));
   window.addEventListener('visibilitychange', () => {

@@ -1309,11 +1309,15 @@ for (const file of files) {
     modified = true;
   }
 
-  // 20c. VelaWorkspace: markStateDirty instant disk persistence (avoid losing changes on app exit)
+  // 20c. VelaWorkspace: markStateDirty debounced persistence (prevents synchronous localStorage blocking on pointer drags)
   const targetMarkDirty = `  markStateDirty() {\n    if (this.destroyed || !this.booted) return;\n    if (this.stateTimer != null) clearTimeout(this.stateTimer);\n    this.stateTimer = setTimeout(() => {\n      this.stateTimer = null;\n      this.events.emit("state:changed", void 0);\n      this.persistNow();\n    }, 500);\n  }`;
-  const replMarkDirty = `  markStateDirty() {\n    if (this.destroyed || !this.booted) return;\n    if (this.stateTimer != null) clearTimeout(this.stateTimer);\n    try { this.persistNow(); } catch {}\n    this.stateTimer = setTimeout(() => {\n      this.stateTimer = null;\n      this.events.emit("state:changed", void 0);\n      this.persistNow();\n    }, 150);\n  }`;
+  const targetMarkDirtyPatched = `  markStateDirty() {\n    if (this.destroyed || !this.booted) return;\n    if (this.stateTimer != null) clearTimeout(this.stateTimer);\n    try { this.persistNow(); } catch {}\n    this.stateTimer = setTimeout(() => {\n      this.stateTimer = null;\n      this.events.emit("state:changed", void 0);\n      this.persistNow();\n    }, 150);\n  }`;
+  const replMarkDirty = `  markStateDirty() {\n    if (this.destroyed || !this.booted) return;\n    if (this.stateTimer != null) clearTimeout(this.stateTimer);\n    this.stateTimer = setTimeout(() => {\n      this.stateTimer = null;\n      this.events.emit("state:changed", void 0);\n      this.persistNow();\n    }, 250);\n  }`;
   if (content.includes(targetMarkDirty)) {
     content = content.replace(targetMarkDirty, replMarkDirty);
+    modified = true;
+  } else if (content.includes(targetMarkDirtyPatched)) {
+    content = content.replace(targetMarkDirtyPatched, replMarkDirty);
     modified = true;
   }
 
@@ -1350,8 +1354,25 @@ for (const file of files) {
     modified = true;
   }
 
+  // 23. Drawing settings: Enable text color editing for labels, alerts & horizontal lines
+  // 23a. Expose text styling (color swatch, size, flags) in styleBlock for any drawing with text.color
+  const targetTextStylingInBlock = `if (!has("text.value") && has("text.color"))`;
+  const replTextStylingInBlock = `if (has("text.color"))`;
+  if (content.includes(targetTextStylingInBlock)) {
+    content = content.replaceAll(targetTextStylingInBlock, replTextStylingInBlock);
+    modified = true;
+  }
+
+  // 23b. Expose text color swatch on quick floating action bar for all drawings with text.color
+  const targetTextOnBarColor = `if (paths.has("text.color") && textOnBar)`;
+  const replTextOnBarColor = `if (paths.has("text.color"))`;
+  if (content.includes(targetTextOnBarColor)) {
+    content = content.replaceAll(targetTextOnBarColor, replTextOnBarColor);
+    modified = true;
+  }
+
   if (modified) {
     fs.writeFileSync(p, content, 'utf8');
   }
 }
-console.log('[patch-vela] All Vela patches (wicks, drag inversion, right offset preservation, dblclick symbol, drawing star button, standard settings footer, shift magnet toggle) applied.');
+console.log('[patch-vela] All Vela patches (wicks, drag inversion, right offset preservation, dblclick symbol, drawing star button, standard settings footer, shift magnet toggle, drawing text color) applied.');

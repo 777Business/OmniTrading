@@ -57,6 +57,7 @@ const DEFAULT_UPSTREAM_HOSTS = {
   demo: 'wss://demo.ctraderapi.com:5036',
   live: 'wss://live.ctraderapi.com:5036',
 };
+const DEFAULT_CTRADER_HOSTS = DEFAULT_UPSTREAM_HOSTS;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -819,6 +820,44 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // Save Custom Indicator Script (Pine Script / TypeScript)
+    if (pathname === '/api/indicators' && req.method === 'POST') {
+      const body = await readJson(req);
+      const code = String(body.code || '').trim();
+      const rawName = String(body.name || 'custom_indicator').trim();
+      let rawFilename = String(body.filename || '').trim();
+
+      if (!code) {
+        sendJson(res, 400, { error: 'Indicator code cannot be empty.' });
+        return;
+      }
+
+      if (!rawFilename) {
+        rawFilename = `${rawName.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_')}.pine`;
+      }
+
+      // Security: Sanitize filename to prevent directory traversal
+      const safeFilename = path.basename(rawFilename).replace(/[^a-zA-Z0-9._-]/g, '_');
+      if (!safeFilename.endsWith('.pine') && !safeFilename.endsWith('.js') && !safeFilename.endsWith('.ts')) {
+        sendJson(res, 400, { error: 'Invalid indicator file extension: must be .pine, .js, or .ts' });
+        return;
+      }
+
+      const customDir = path.join(APP_DIR, 'custom-indicators');
+      await fs.mkdir(customDir, { recursive: true });
+      const targetPath = path.join(customDir, safeFilename);
+
+      await fs.writeFile(targetPath, code, 'utf8');
+
+      sendJson(res, 200, {
+        ok: true,
+        filename: safeFilename,
+        url: `/custom-indicators/${safeFilename}`,
+        name: rawName,
+      });
+      return;
+    }
+
     // Broker Auth Status
     if (pathname === '/api/auth/status' && req.method === 'GET') {
       const config = await readConfig();
@@ -992,6 +1031,99 @@ const server = http.createServer(async (req, res) => {
 
 // WebSocket Server for cTrader proxy
 const wss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024 });
+
+wss.on('connection', async (clientWs, req) => {
+  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  const handle = url.searchParams.get('account');
+
+  clientWs.on('error', () => undefined);
+
+  if (!handle) {
+    try {
+      clientWs.send(JSON.stringify({ payloadType: -2, payload: { error: 'Account handle is required' } }));
+      clientWs.close();
+    } catch {}
+    return;
+  }
+
+  const config = await readConfig();
+  const account = config.accounts.find((a) => a.handle === handle);
+  if (!account || !config.tokens?.accessToken) {
+    try {
+      clientWs.send(JSON.stringify({ payloadType: -2, payload: { error: 'Account not configured or access token missing' } }));
+      clientWs.close();
+    } catch {}
+    return;
+  }
+
+  let upstream;
+  try {
+    upstream = openSocket(account.environment);
+  } catch (err) {
+    try {
+      clientWs.send(JSON.stringify({ payloadType: -2, payload: { error: `Failed to open upstream connection: ${err.message}` } }));
+      clientWs.close();
+    } catch {}
+    return;
+  }
+
+  const pending = new Map();
+  upstream.on('error', (err) => {
+    try {
+      clientWs.send(JSON.stringify({ payloadType: -2, payload: { error: err.message || 'Upstream error' } }));
+      clientWs.close();
+    } catch {}
+  });
+
+  upstream.on('close', () => {
+    try { clientWs.close(); } catch {}
+  });
+
+  clientWs.on('close', () => {
+    try { upstream.close(); } catch {}
+  });
+
+  try {
+    await waitOpen(upstream);
+    // Authenticate application
+    await sendRequest(upstream, pending, 2100, {
+      clientId: config.app.clientId,
+      clientSecret: config.app.clientSecret,
+    });
+    // Authenticate account
+    await sendRequest(upstream, pending, 2102, {
+      ctidTraderAccountId: account.accountId,
+      accessToken: config.tokens.accessToken,
+    });
+
+    // Notify client ready
+    clientWs.send(JSON.stringify({ payloadType: -2, payload: { ready: true } }));
+
+    // Proxy downstream messages (client -> upstream)
+    clientWs.on('message', (data) => {
+      if (upstream.readyState === WebSocket.OPEN) {
+        try {
+          upstream.send(data);
+        } catch {}
+      }
+    });
+
+    // Proxy upstream messages (upstream -> client)
+    attachUpstream(upstream, pending, (message) => {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        try {
+          clientWs.send(JSON.stringify(message));
+        } catch {}
+      }
+    });
+  } catch (err) {
+    try {
+      clientWs.send(JSON.stringify({ payloadType: -2, payload: { error: err.message || 'cTrader authentication failed' } }));
+      clientWs.close();
+    } catch {}
+    try { upstream.close(); } catch {}
+  }
+});
 
 server.on('upgrade', async (req, socket, head) => {
   if (!validateSecurity(req, { writeHead: () => {}, end: () => {} })) {

@@ -31,14 +31,34 @@ export class TradingPanel {
   private positions: Position[] = [];
   private history: any[] = [];
   private unsubs: Array<() => void> = [];
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingRefresh = false;
+  private preferredHeight = 240;
+  private isResizing = false;
+  private startY = 0;
+  private startHeight = 240;
 
   constructor(
     private readonly getWorkspace: () => VelaWorkspace | null,
     private readonly toast: (msg: string) => void,
   ) {
+    this.preferredHeight = this.loadPreferredHeight();
     this.initPanel();
     this.bindEvents();
     this.refresh();
+  }
+
+  private loadPreferredHeight(): number {
+    try {
+      const stored = localStorage.getItem('omni-trade-panel-height');
+      if (stored) {
+        const val = parseInt(stored, 10);
+        if (Number.isFinite(val) && val >= 100 && val <= (window.innerHeight * 0.85)) {
+          return val;
+        }
+      }
+    } catch {}
+    return 240;
   }
 
   private initPanel(): void {
@@ -54,8 +74,8 @@ export class TradingPanel {
       left: 0;
       right: 0;
       z-index: 900;
-      background: #090e17;
-      border-top: 1px solid #1e293b;
+      background: var(--vela-surface, #12161c);
+      border-top: 1px solid var(--vela-border, #263039);
       box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
       display: flex;
       flex-direction: column;
@@ -64,33 +84,140 @@ export class TradingPanel {
       transition: height 0.2s ease;
     `;
 
+    // Resizer handle at top edge
+    const resizer = document.createElement('div');
+    resizer.className = 'omni-panel-resizer';
+    resizer.style.cssText = `
+      position: absolute;
+      top: -3px;
+      left: 0;
+      right: 0;
+      height: 7px;
+      cursor: ns-resize;
+      z-index: 50;
+      background: transparent;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    `;
+    resizer.title = 'Drag to resize Trade Manager height';
+    resizer.innerHTML = `<div class="omni-resizer-grip" style="width: 40px; height: 3px; border-radius: 2px; background: var(--vela-border, #334155); opacity: 0.7; pointer-events: none; transition: all 0.15s ease;"></div>`;
+
+    resizer.addEventListener('mouseenter', () => {
+      const grip = resizer.querySelector('.omni-resizer-grip') as HTMLElement;
+      if (grip) {
+        grip.style.background = 'var(--vela-accent, #22d3a5)';
+        grip.style.opacity = '1';
+        grip.style.width = '60px';
+      }
+    });
+    resizer.addEventListener('mouseleave', () => {
+      if (!this.isResizing) {
+        const grip = resizer.querySelector('.omni-resizer-grip') as HTMLElement;
+        if (grip) {
+          grip.style.background = 'var(--vela-border, #334155)';
+          grip.style.opacity = '0.7';
+          grip.style.width = '40px';
+        }
+      }
+    });
+
+    resizer.addEventListener('pointerdown', this.onResizerPointerDown);
+    panel.appendChild(resizer);
+
     document.body.appendChild(panel);
     this.panelEl = panel;
     this.render();
   }
 
-  private bindEvents(): void {
-    const onUpdate = () => this.refresh();
-    window.addEventListener('omni:position-change', onUpdate);
-    window.addEventListener('omni:order-placed', onUpdate);
-    window.addEventListener('omni:price-tick', onUpdate);
-    window.addEventListener('vela:price-tick', onUpdate);
+  private onResizerPointerDown = (e: PointerEvent): void => {
+    e.preventDefault();
+    this.isResizing = true;
+    this.startY = e.clientY;
+    this.startHeight = this.panelEl ? this.panelEl.offsetHeight : this.preferredHeight;
+    if (!this.isExpanded) {
+      this.isExpanded = true;
+      this.render();
+    }
+    if (this.panelEl) {
+      this.panelEl.style.transition = 'none';
+    }
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
 
-    this.unsubs.push(() => window.removeEventListener('omni:position-change', onUpdate));
-    this.unsubs.push(() => window.removeEventListener('omni:order-placed', onUpdate));
-    this.unsubs.push(() => window.removeEventListener('omni:price-tick', onUpdate));
-    this.unsubs.push(() => window.removeEventListener('vela:price-tick', onUpdate));
+    window.addEventListener('pointermove', this.onResizerPointerMove);
+    window.addEventListener('pointerup', this.onResizerPointerUp);
+  };
+
+  private onResizerPointerMove = (e: PointerEvent): void => {
+    if (!this.isResizing || !this.panelEl) return;
+    const dy = this.startY - e.clientY;
+    const maxH = Math.floor(window.innerHeight * 0.85);
+    const newH = Math.min(maxH, Math.max(100, this.startHeight + dy));
+    this.preferredHeight = newH;
+    this.panelEl.style.height = `${newH}px`;
+  };
+
+  private onResizerPointerUp = (): void => {
+    if (!this.isResizing) return;
+    this.isResizing = false;
+    if (this.panelEl) {
+      this.panelEl.style.transition = 'height 0.2s ease';
+      const grip = this.panelEl.querySelector('.omni-resizer-grip') as HTMLElement;
+      if (grip) {
+        grip.style.background = 'var(--vela-border, #334155)';
+        grip.style.opacity = '0.7';
+        grip.style.width = '40px';
+      }
+    }
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    window.removeEventListener('pointermove', this.onResizerPointerMove);
+    window.removeEventListener('pointerup', this.onResizerPointerUp);
+    try {
+      localStorage.setItem('omni-trade-panel-height', String(Math.round(this.preferredHeight)));
+    } catch {}
+  };
+
+  private bindEvents(): void {
+    const onThrottledUpdate = () => this.queueRefresh();
+    window.addEventListener('omni:position-change', onThrottledUpdate);
+    window.addEventListener('omni:order-placed', onThrottledUpdate);
+    window.addEventListener('omni:price-tick', onThrottledUpdate);
+    window.addEventListener('vela:price-tick', onThrottledUpdate);
+
+    this.unsubs.push(() => window.removeEventListener('omni:position-change', onThrottledUpdate));
+    this.unsubs.push(() => window.removeEventListener('omni:order-placed', onThrottledUpdate));
+    this.unsubs.push(() => window.removeEventListener('omni:price-tick', onThrottledUpdate));
+    this.unsubs.push(() => window.removeEventListener('vela:price-tick', onThrottledUpdate));
 
     const registry = BrokerRegistry.getInstance();
-    const unsubReg = registry.subscribe(() => this.refresh());
+    const unsubReg = registry.subscribe(() => this.queueRefresh());
     this.unsubs.push(unsubReg);
+  }
+
+  public queueRefresh(): void {
+    if (this.refreshTimer !== null) {
+      this.pendingRefresh = true;
+      return;
+    }
+    this.refresh();
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = null;
+      if (this.pendingRefresh) {
+        this.pendingRefresh = false;
+        this.refresh();
+      }
+    }, 250);
   }
 
   public async refresh(): Promise<void> {
     const registry = BrokerRegistry.getInstance();
     try {
       this.positions = await registry.getPositions();
-      this.history = await registry.getOrdersHistory();
+      if (this.isExpanded) {
+        this.history = await registry.getOrdersHistory();
+      }
       this.render();
     } catch {
       /* ignore */
@@ -128,31 +255,46 @@ export class TradingPanel {
     const posCount = this.positions.length;
     const histCount = this.history.length;
 
-    this.panelEl.style.height = this.isExpanded ? '230px' : '36px';
+    // Fast-path for collapsed bar: update numbers in-place without rebuilding DOM
+    if (!this.isExpanded) {
+      const pnlEl = this.panelEl.querySelector('.omni-panel-unrealized-pnl') as HTMLElement | null;
+      const eqEl = this.panelEl.querySelector('.omni-panel-equity-val') as HTMLElement | null;
+      const balEl = this.panelEl.querySelector('.omni-panel-balance-val') as HTMLElement | null;
+      if (pnlEl && eqEl && balEl) {
+        pnlEl.textContent = pnlFormatted;
+        pnlEl.style.color = pnlColor;
+        eqEl.textContent = equityText;
+        eqEl.style.color = pnlColor;
+        balEl.textContent = balanceText;
+        return;
+      }
+    }
+
+    this.panelEl.style.height = this.isExpanded ? `${this.preferredHeight}px` : '36px';
 
     this.panelEl.innerHTML = `
       <!-- Docked Header Bar -->
-      <div style="height: 36px; min-height: 36px; padding: 0 16px; background: #0f172a; border-bottom: ${this.isExpanded ? '1px solid #1e293b' : 'none'}; display: flex; align-items: center; justify-content: space-between;">
+      <div style="height: 36px; min-height: 36px; padding: 0 16px; background: var(--vela-surface, #12161c); border-bottom: ${this.isExpanded ? '1px solid var(--vela-border, #263039)' : 'none'}; display: flex; align-items: center; justify-content: space-between;">
         
         <!-- Left: Title, Account, Tabs -->
         <div style="display: flex; align-items: center; gap: 14px;">
           <!-- Expand/Collapse Button -->
-          <button type="button" class="btn-toggle-expand" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 13px; padding: 2px 6px; display: flex; align-items: center; gap: 4px;">
+          <button type="button" class="btn-toggle-expand" style="background: none; border: none; color: var(--vela-fg-muted, #8b98a5); cursor: pointer; font-size: 13px; padding: 2px 6px; display: flex; align-items: center; gap: 4px;">
             <span>${this.isExpanded ? '▼' : '▲'}</span>
-            <strong style="color: #f8fafc; font-size: 12px; letter-spacing: 0.3px;">TRADE MANAGER</strong>
+            <strong style="color: var(--vela-fg-bright, #f8fafc); font-size: 12px; letter-spacing: 0.3px;">TRADE MANAGER</strong>
           </button>
 
           <!-- Account Pill -->
-          <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; background: #1e293b; padding: 3px 10px; border-radius: 5px; border: 1px solid #334155;">
-            <span style="color: #38bdf8; font-weight: 700;">${escapeHtml(brokerName)}</span>
-            <span style="color: #94a3b8;">${escapeHtml(accNum)}</span>
-            <span style="background: ${env === 'live' ? 'rgba(239,68,68,0.2)' : 'rgba(56,189,248,0.2)'}; color: ${env === 'live' ? '#ef4444' : '#38bdf8'}; font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 3px;">
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; background: var(--vela-surface-elev, #1a1d24); padding: 3px 10px; border-radius: 5px; border: 1px solid var(--vela-border, #263039);">
+            <span style="color: var(--vela-accent, #22d3a5); font-weight: 700;">${escapeHtml(brokerName)}</span>
+            <span style="color: var(--vela-fg-muted, #8b98a5);">${escapeHtml(accNum)}</span>
+            <span style="background: ${env === 'live' ? 'rgba(239,68,68,0.2)' : 'rgba(34,211,165,0.15)'}; color: ${env === 'live' ? '#ef4444' : 'var(--vela-accent, #22d3a5)'}; font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 3px;">
               ${env.toUpperCase()}
             </span>
-            <span style="color: #475569;">|</span>
-            <span style="color: #cbd5e1;">Bal: <strong>${balanceText}</strong></span>
-            <span style="color: #475569;">|</span>
-            <span style="color: #cbd5e1;">Eq: <strong style="color: ${pnlColor};">${equityText}</strong></span>
+            <span style="color: var(--vela-border, #263039);">|</span>
+            <span style="color: var(--vela-fg, #cbd5e1);">Bal: <strong class="omni-panel-balance-val">${balanceText}</strong></span>
+            <span style="color: var(--vela-border, #263039);">|</span>
+            <span style="color: var(--vela-fg, #cbd5e1);">Eq: <strong class="omni-panel-equity-val" style="color: ${pnlColor};">${equityText}</strong></span>
           </div>
 
           <!-- Tab Buttons (Visible when expanded) -->
@@ -160,13 +302,13 @@ export class TradingPanel {
             this.isExpanded
               ? `
             <div style="display: flex; align-items: center; gap: 4px; margin-left: 8px;">
-              <button type="button" class="tab-btn" data-tab="positions" style="background: ${this.activeTab === 'positions' ? '#0284c7' : 'transparent'}; color: ${this.activeTab === 'positions' ? '#fff' : '#94a3b8'}; border: none; border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: 600; cursor: pointer;">
+              <button type="button" class="tab-btn" data-tab="positions" style="background: ${this.activeTab === 'positions' ? 'var(--vela-accent, #22d3a5)' : 'transparent'}; color: ${this.activeTab === 'positions' ? '#0b0e11' : 'var(--vela-fg-muted, #8b98a5)'}; border: none; border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;">
                 Positions (${posCount})
               </button>
-              <button type="button" class="tab-btn" data-tab="history" style="background: ${this.activeTab === 'history' ? '#0284c7' : 'transparent'}; color: ${this.activeTab === 'history' ? '#fff' : '#94a3b8'}; border: none; border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: 600; cursor: pointer;">
+              <button type="button" class="tab-btn" data-tab="history" style="background: ${this.activeTab === 'history' ? 'var(--vela-accent, #22d3a5)' : 'transparent'}; color: ${this.activeTab === 'history' ? '#0b0e11' : 'var(--vela-fg-muted, #8b98a5)'}; border: none; border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;">
                 Orders History (${histCount})
               </button>
-              <button type="button" class="tab-btn" data-tab="analytics" style="background: ${this.activeTab === 'analytics' ? '#0284c7' : 'transparent'}; color: ${this.activeTab === 'analytics' ? '#fff' : '#94a3b8'}; border: none; border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: 600; cursor: pointer;">
+              <button type="button" class="tab-btn" data-tab="analytics" style="background: ${this.activeTab === 'analytics' ? 'var(--vela-accent, #22d3a5)' : 'transparent'}; color: ${this.activeTab === 'analytics' ? '#0b0e11' : 'var(--vela-fg-muted, #8b98a5)'}; border: none; border-radius: 4px; padding: 3px 10px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;">
                 Analytics &amp; Risk
               </button>
             </div>
@@ -178,8 +320,8 @@ export class TradingPanel {
         <!-- Right: Net PnL & Emergency Close All -->
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="display: flex; align-items: center; gap: 6px; font-size: 12px;">
-            <span style="color: #94a3b8;">Unrealized PnL:</span>
-            <strong style="color: ${pnlColor}; font-family: monospace; font-size: 13px;">${pnlFormatted}</strong>
+            <span style="color: var(--vela-fg-muted, #8b98a5);">Unrealized PnL:</span>
+            <strong class="omni-panel-unrealized-pnl" style="color: ${pnlColor}; font-family: monospace; font-size: 13px;">${pnlFormatted}</strong>
           </div>
 
           ${
@@ -198,7 +340,7 @@ export class TradingPanel {
       ${
         this.isExpanded
           ? `
-        <div class="omni-panel-body" style="flex: 1; overflow-y: auto; padding: 10px 16px; background: #080d1a;">
+        <div class="omni-panel-body" style="flex: 1; overflow-y: auto; padding: 10px 16px; background: var(--vela-surface-sunken, #0b0e11);">
           ${this.renderActiveTabContent()}
         </div>
       `
@@ -289,11 +431,11 @@ export class TradingPanel {
                   </td>
                   <td style="padding: 8px 10px; color: #cbd5e1; font-family: monospace;">${pos.volume.toFixed(2)}</td>
                   <td style="padding: 8px 10px; color: #cbd5e1; font-family: monospace;">${pos.entryPrice}</td>
-                  <td style="padding: 8px 10px; color: #38bdf8; font-family: monospace;">${pos.currentPrice}</td>
-                  <td style="padding: 8px 10px; color: ${pos.stopLoss ? '#f87171' : '#64748b'}; font-family: monospace;">
+                  <td style="padding: 8px 10px; color: var(--vela-accent, #22d3a5); font-family: monospace;">${pos.currentPrice}</td>
+                  <td style="padding: 8px 10px; color: ${pos.stopLoss ? '#f87171' : 'var(--vela-fg-muted, #8b98a5)'}; font-family: monospace;">
                     ${pos.stopLoss || 'None'}
                   </td>
-                  <td style="padding: 8px 10px; color: ${pos.takeProfit ? '#4ade80' : '#64748b'}; font-family: monospace;">
+                  <td style="padding: 8px 10px; color: ${pos.takeProfit ? '#4ade80' : 'var(--vela-fg-muted, #8b98a5)'}; font-family: monospace;">
                     ${pos.takeProfit || 'None'}
                   </td>
                   <td style="padding: 8px 10px; font-weight: 700; color: ${pnlColor}; font-family: monospace; font-size: 12px;">
@@ -302,11 +444,11 @@ export class TradingPanel {
                   <td style="padding: 8px 10px; text-align: right;">
                     <div style="display: inline-flex; align-items: center; gap: 6px;">
                       <!-- Break Even Button -->
-                      <button type="button" class="btn-be" data-id="${pos.id}" data-entry="${pos.entryPrice}" title="Set Stop Loss to Entry Price (Break-Even)" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; font-size: 10px; font-weight: 700; padding: 3px 6px; border-radius: 4px; cursor: pointer;">
+                      <button type="button" class="btn-be" data-id="${pos.id}" data-entry="${pos.entryPrice}" title="Set Stop Loss to Entry Price (Break-Even)" style="background: rgba(34, 211, 165, 0.12); border: 1px solid var(--vela-accent, #22d3a5); color: var(--vela-accent, #22d3a5); font-size: 10px; font-weight: 700; padding: 3px 6px; border-radius: 4px; cursor: pointer;">
                         BE
                       </button>
                       <!-- Edit SL/TP Button -->
-                      <button type="button" class="btn-edit-sl-tp" data-id="${pos.id}" data-sym="${pos.symbol}" data-sl="${pos.stopLoss || ''}" data-tp="${pos.takeProfit || ''}" title="Edit Stop Loss and Take Profit" style="background: #1e293b; border: 1px solid #334155; color: #cbd5e1; font-size: 10px; font-weight: 600; padding: 3px 6px; border-radius: 4px; cursor: pointer;">
+                      <button type="button" class="btn-edit-sl-tp" data-id="${pos.id}" data-sym="${pos.symbol}" data-sl="${pos.stopLoss || ''}" data-tp="${pos.takeProfit || ''}" title="Edit Stop Loss and Take Profit" style="background: var(--vela-surface-elev, #1a1d24); border: 1px solid var(--vela-border, #263039); color: var(--vela-fg, #cbd5e1); font-size: 10px; font-weight: 600; padding: 3px 6px; border-radius: 4px; cursor: pointer;">
                         ✏️ SL/TP
                       </button>
                       <!-- Partial Close (50%) -->
@@ -378,9 +520,9 @@ export class TradingPanel {
                   </td>
                   <td style="padding: 6px 10px; color: #94a3b8;">${h.action || 'TRADE'}</td>
                   <td style="padding: 6px 10px; color: #cbd5e1; font-family: monospace;">${Number(h.volume).toFixed(2)}</td>
-                  <td style="padding: 6px 10px; color: #38bdf8; font-family: monospace;">${execPrice}</td>
+                  <td style="padding: 6px 10px; color: var(--vela-accent, #22d3a5); font-family: monospace;">${execPrice}</td>
                   <td style="padding: 6px 10px;">
-                    <span style="background: rgba(56,189,248,0.15); color:#38bdf8; font-size:9.5px; padding:1px 5px; border-radius:3px; font-weight:700;">
+                    <span style="background: rgba(34,211,165,0.15); color:var(--vela-accent, #22d3a5); font-size:9.5px; padding:1px 5px; border-radius:3px; font-weight:700;">
                       ${h.status || 'FILLED'}
                     </span>
                   </td>
@@ -407,32 +549,32 @@ export class TradingPanel {
 
     return `
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 10px 0;">
-        <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 16px;">
-          <div style="font-size: 11px; color: #64748b; font-weight: 600;">WIN RATE</div>
-          <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-top: 4px;">${winRate}%</div>
-          <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">${winningTrades.length} won / ${closedTrades.length} closed</div>
+        <div style="background: var(--vela-surface-elev, #1a1d24); border: 1px solid var(--vela-border, #263039); border-radius: 8px; padding: 12px 16px;">
+          <div style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5); font-weight: 600;">WIN RATE</div>
+          <div style="font-size: 20px; font-weight: 800; color: var(--vela-accent, #22d3a5); margin-top: 4px;">${winRate}%</div>
+          <div style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5); margin-top: 2px;">${winningTrades.length} won / ${closedTrades.length} closed</div>
         </div>
 
-        <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 16px;">
-          <div style="font-size: 11px; color: #64748b; font-weight: 600;">NET REALIZED PNL</div>
+        <div style="background: var(--vela-surface-elev, #1a1d24); border: 1px solid var(--vela-border, #263039); border-radius: 8px; padding: 12px 16px;">
+          <div style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5); font-weight: 600;">NET REALIZED PNL</div>
           <div style="font-size: 20px; font-weight: 800; color: ${totalRealized >= 0 ? '#4ade80' : '#f87171'}; margin-top: 4px;">
             ${totalRealized >= 0 ? '+' : ''}$${totalRealized.toFixed(2)}
           </div>
-          <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Cumulative profits</div>
+          <div style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5); margin-top: 2px;">Cumulative profits</div>
         </div>
 
-        <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 16px;">
-          <div style="font-size: 11px; color: #64748b; font-weight: 600;">OPEN TRADES COUNT</div>
-          <div style="font-size: 20px; font-weight: 800; color: #f8fafc; margin-top: 4px;">${this.positions.length}</div>
-          <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Active in market</div>
+        <div style="background: var(--vela-surface-elev, #1a1d24); border: 1px solid var(--vela-border, #263039); border-radius: 8px; padding: 12px 16px;">
+          <div style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5); font-weight: 600;">OPEN TRADES COUNT</div>
+          <div style="font-size: 20px; font-weight: 800; color: var(--vela-fg-bright, #f8fafc); margin-top: 4px;">${this.positions.length}</div>
+          <div style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5); margin-top: 2px;">Active in market</div>
         </div>
 
-        <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 16px;">
-          <div style="font-size: 11px; color: #64748b; font-weight: 600;">PROFIT FACTOR</div>
-          <div style="font-size: 20px; font-weight: 800; color: #a78bfa; margin-top: 4px;">
+        <div style="background: var(--vela-surface-elev, #1a1d24); border: 1px solid var(--vela-border, #263039); border-radius: 8px; padding: 12px 16px;">
+          <div style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5); font-weight: 600;">PROFIT FACTOR</div>
+          <div style="font-size: 20px; font-weight: 800; color: var(--vela-accent, #22d3a5); margin-top: 4px;">
             ${winningTrades.length > 0 && losingTrades.length > 0 ? (winningTrades.length / losingTrades.length).toFixed(2) : '--'}
           </div>
-          <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Wins to Losses ratio</div>
+          <div style="font-size: 11px; color: var(--vela-fg-muted, #8b98a5); margin-top: 2px;">Wins to Losses ratio</div>
         </div>
       </div>
     `;
@@ -517,26 +659,26 @@ export class TradingPanel {
     modal.style.zIndex = '999999';
 
     modal.innerHTML = `
-      <div class="ct-card" style="max-width: 400px; padding: 22px; background: #0f172a; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 25px 60px rgba(0,0,0,0.85); font-family: system-ui, sans-serif;">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 16px; color: #f8fafc; font-weight: 700;">Manage Trade: ${escapeHtml(symbol)}</h3>
-          <button type="button" class="btn-cancel" style="background:none; border:none; color:#94a3b8; font-size:18px; cursor:pointer;">✕</button>
+      <div class="ct-card" style="max-width: 400px; padding: 22px; background: var(--vela-surface-elev, #1a1d24); border: 1px solid var(--vela-border, #263039); border-radius: 12px; box-shadow: 0 25px 60px rgba(0,0,0,0.85); font-family: system-ui, sans-serif;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--vela-border, #263039); padding-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 16px; color: var(--vela-fg-bright, #f8fafc); font-weight: 700;">Manage Trade: ${escapeHtml(symbol)}</h3>
+          <button type="button" class="btn-cancel" style="background:none; border:none; color:var(--vela-fg-muted, #8b98a5); font-size:18px; cursor:pointer;">✕</button>
         </div>
 
         <form class="edit-pos-form" style="display: flex; flex-direction: column; gap: 14px; margin-top: 16px;">
           <div style="display: flex; flex-direction: column; gap: 4px;">
             <label style="font-size: 12px; color: #f87171; font-weight: 600;">Stop Loss (SL Price)</label>
-            <input type="number" step="any" name="sl" value="${escapeHtml(currentSl)}" placeholder="Leave empty for None" style="padding: 8px 12px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 13px;" />
+            <input type="number" step="any" name="sl" value="${escapeHtml(currentSl)}" placeholder="Leave empty for None" style="padding: 8px 12px; background: var(--vela-surface-sunken, #0b0e11); border: 1px solid var(--vela-border, #263039); border-radius: 6px; color: var(--vela-fg-bright, #f8fafc); font-size: 13px;" />
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 4px;">
             <label style="font-size: 12px; color: #4ade80; font-weight: 600;">Take Profit (TP Price)</label>
-            <input type="number" step="any" name="tp" value="${escapeHtml(currentTp)}" placeholder="Leave empty for None" style="padding: 8px 12px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #f8fafc; font-size: 13px;" />
+            <input type="number" step="any" name="tp" value="${escapeHtml(currentTp)}" placeholder="Leave empty for None" style="padding: 8px 12px; background: var(--vela-surface-sunken, #0b0e11); border: 1px solid var(--vela-border, #263039); border-radius: 6px; color: var(--vela-fg-bright, #f8fafc); font-size: 13px;" />
           </div>
 
           <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
-            <button type="button" class="btn-cancel" style="background: #1e293b; border: 1px solid #334155; color: #cbd5e1; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Cancel</button>
-            <button type="submit" style="background: #0284c7; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;">Save Protection</button>
+            <button type="button" class="btn-cancel" style="background: var(--vela-surface, #12161c); border: 1px solid var(--vela-border, #263039); color: var(--vela-fg, #cbd5e1); padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Cancel</button>
+            <button type="submit" style="background: var(--vela-accent, #22d3a5); color: #0b0e11; border: none; padding: 8px 18px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;">Save Protection</button>
           </div>
         </form>
       </div>
