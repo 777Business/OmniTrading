@@ -153,12 +153,30 @@ export class WatchlistManager {
   }
 
   toggle(): void {
+    const ws = this.getWorkspace();
+    if (ws) {
+      const dock = (ws as any).dock;
+      if (dock && typeof dock.toggle === 'function') {
+        dock.toggle('vela.watchlist');
+        return;
+      }
+      const ctx = (ws as any).context?.();
+      if (ctx && typeof ctx.togglePanel === 'function') {
+        ctx.togglePanel('vela.watchlist');
+        return;
+      }
+    }
+
     if (this.isOpen && this.headerHandle) {
       this.headerHandle.close();
-    } else {
-      const btn = document.querySelector('[data-panel-id="vela.watchlist"], button[aria-label*="Watchlist"]') as HTMLButtonElement | null;
-      btn?.click();
+      this.isOpen = false;
+      return;
     }
+
+    const btn = document.querySelector(
+      '[data-panel-id="vela.watchlist"], [data-sidebar-id="vela.watchlist"], [data-id="vela.watchlist"], button[aria-label*="Watchlist"]'
+    ) as HTMLButtonElement | null;
+    btn?.click();
   }
 
   close(): void {

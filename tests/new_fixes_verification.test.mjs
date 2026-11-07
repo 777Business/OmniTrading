@@ -6,6 +6,11 @@
  * 2. Trade Manager panel height clamping and persistence
  * 3. Chart Positions Overlay projector resolution and TP/SL bracket math
  * 4. Quick Trade 1-Click toggle and native Vela theme alignment (green BUY, red SELL)
+ * 5. Broker Modal Vela Native Theme Palette Alignment
+ * 6. Group button & corner controls bar design (offset from price gutter, separator, clean icons)
+ * 7. Trade Manager dynamic viewport adjustment (chart moves up without being overlaid)
+ * 8. Watchlist toggle mechanism via ws.dock.toggle
+ * 9. Spread Visualizer coordinate & projector resolution and platform palette
  */
 
 import { test, describe } from 'node:test';
@@ -116,5 +121,55 @@ describe('New Fixes Verification Suite', () => {
     assert.ok(!code.includes('#2563eb'), 'brokerModal.ts must not contain blue #2563eb');
     assert.ok(code.includes('var(--vela-accent'), 'brokerModal.ts must use Vela accent');
     assert.ok(code.includes('var(--vela-surface'), 'brokerModal.ts must use Vela surface');
+  });
+
+  test('6. Group Button & Corner Controls Bar Design', () => {
+    const htmlPath = path.resolve('index.html');
+    const htmlCode = fs.readFileSync(htmlPath, 'utf8');
+
+    // Check corner controls are offset from price scale gutter
+    assert.ok(htmlCode.includes('right: 68px;'), 'Corner controls must be offset from price scale gutter');
+    assert.ok(htmlCode.includes('.vela-corner-sep'), 'Must include separator between badge and buttons');
+
+    // Check main.ts corner controls construction
+    const mainPath = path.resolve('src/main.ts');
+    const mainCode = fs.readFileSync(mainPath, 'utf8');
+    assert.ok(mainCode.includes('vela-corner-sep'), 'main.ts must append separator');
+  });
+
+  test('7. Trade Manager Dynamic Viewport Adjustment (Chart Moves Up)', () => {
+    const tradingPanelPath = path.resolve('src/ui/tradingPanel.ts');
+    const code = fs.readFileSync(tradingPanelPath, 'utf8');
+
+    assert.ok(code.includes('syncWorkspaceOffset'), 'Must sync workspace offset on expand/resize');
+    assert.ok(code.includes("appEl.style.bottom = `${height}px`"), 'Must dynamically adjust #app bottom');
+
+    // Check index.html default layout
+    const htmlPath = path.resolve('index.html');
+    const htmlCode = fs.readFileSync(htmlPath, 'utf8');
+    assert.ok(htmlCode.includes('#app {\n        position: absolute;'), '#app must be absolute positioned');
+  });
+
+  test('8. Watchlist Toggle Mechanism via ws.dock.toggle', () => {
+    const watchlistPath = path.resolve('src/watchlist.ts');
+    const code = fs.readFileSync(watchlistPath, 'utf8');
+
+    assert.ok(code.includes("dock.toggle('vela.watchlist')"), 'Must call dock.toggle for watchlist');
+
+    const mainPath = path.resolve('src/main.ts');
+    const mainCode = fs.readFileSync(mainPath, 'utf8');
+    assert.ok(mainCode.includes('watchlist.toggle()'), 'Topbar action must invoke watchlist.toggle()');
+  });
+
+  test('9. Spread Visualizer Resolution & Platform Palette', () => {
+    const spreadPath = path.resolve('src/spread.ts');
+    const code = fs.readFileSync(spreadPath, 'utf8');
+
+    assert.ok(code.includes('resolveRenderer'), 'Must resolve NativeRenderer properly');
+    assert.ok(code.includes('drawingProjector'), 'Must use drawingProjector for price mapping');
+    assert.ok(code.includes('fetchInitialQuote'), 'Must fetch initial quote if tick is not yet received');
+    assert.ok(!code.includes('#3b82f6'), 'Bid line must not be blue #3b82f6');
+    assert.ok(code.includes('#089981'), 'Bid line must be emerald #089981');
+    assert.ok(code.includes('#f23645'), 'Ask line must be red #f23645');
   });
 });

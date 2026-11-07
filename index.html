@@ -28,40 +28,55 @@
       * { box-sizing: border-box; }
       html, body { margin: 0; height: 100%; background: var(--ct-bg); overflow: hidden; }
       body { color: var(--ct-text); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-      #app { width: 100vw; height: 100vh; }
+      #app {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 240px;
+        transition: bottom 0.2s ease;
+        overflow: hidden;
+      }
 
       #chart {
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100%;
       }
 
       /* ---- Cell Corner Controls Bar & Close Button ---- */
       .vela-cell-corner-controls {
         position: absolute;
         top: 6px;
-        right: 6px;
+        right: 68px; /* Offset from price scale gutter so it never covers price axis */
         z-index: 50;
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 3px;
-        background: rgba(15, 23, 42, 0.85);
-        backdrop-filter: blur(8px);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        border-radius: 4px;
+        background: rgba(18, 22, 28, 0.92);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--vela-border, #263039);
+        border-radius: 6px;
         padding: 2px 4px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        height: 26px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
         user-select: none;
+      }
+      .vela-corner-sep {
+        width: 1px;
+        height: 14px;
+        background: var(--vela-border, #263039);
+        margin: 0 2px;
       }
       .vela-corner-btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 22px;
-        height: 22px;
-        border-radius: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
         background: transparent;
         border: none;
-        color: #94a3b8;
+        color: var(--vela-fg-muted, #8b98a5);
         cursor: pointer;
         font-size: 13px;
         font-weight: 700;
@@ -70,16 +85,16 @@
         padding: 0;
       }
       .vela-corner-btn:hover {
-        background: rgba(255, 255, 255, 0.12);
-        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--vela-fg-bright, #f8fafc);
       }
       .vela-corner-btn.add-btn:hover {
-        background: #089981;
-        color: #ffffff;
+        background: rgba(8, 153, 129, 0.2);
+        color: var(--vela-accent, #22d3a5);
       }
       .vela-corner-btn.close-btn:hover {
-        background: #dc2626;
-        color: #ffffff;
+        background: rgba(242, 54, 69, 0.2);
+        color: #f87171;
       }
 
       /* ---- Omni Color Link Badge & Popover ---- */
@@ -88,13 +103,14 @@
         align-items: center;
         justify-content: center;
         gap: 4px;
-        border-radius: 3px;
+        border-radius: 4px;
         cursor: pointer;
         transition: all 0.15s ease;
-        border: 1px solid rgba(148, 163, 184, 0.25);
-        background: rgba(15, 23, 42, 0.7);
-        padding: 0 4px;
+        border: 1px solid var(--vela-border, #263039);
+        background: rgba(255, 255, 255, 0.04);
+        padding: 2px 6px;
         user-select: none;
+        height: 20px;
       }
       .omni-link-badge-statusline {
         height: 20px;
@@ -102,17 +118,32 @@
         vertical-align: middle;
       }
       .omni-link-badge-corner {
-        width: 22px;
-        height: 22px;
-        padding: 0;
+        height: 20px;
+        padding: 0 5px;
       }
       .omni-link-badge:hover {
-        border-color: rgba(255, 255, 255, 0.4) !important;
-        transform: scale(1.04);
+        background: rgba(255, 255, 255, 0.08);
+        border-color: var(--vela-accent, #22d3a5) !important;
       }
       .omni-link-dot {
-        width: 8px;
-        height: 8px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+      .omni-link-svg {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 12px;
+        height: 12px;
+      }
+      .omni-link-svg svg {
+        width: 12px;
+        height: 12px;
+        display: block;
+      }
         border-radius: 50%;
         display: inline-block;
         flex-shrink: 0;

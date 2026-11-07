@@ -127,7 +127,25 @@ export class TradingPanel {
 
     document.body.appendChild(panel);
     this.panelEl = panel;
+    this.syncWorkspaceOffset(this.isExpanded ? this.preferredHeight : 36, false);
     this.render();
+  }
+
+  private syncWorkspaceOffset(height: number, animate: boolean): void {
+    const appEl = document.getElementById('app');
+    if (appEl) {
+      appEl.style.transition = animate ? 'bottom 0.2s ease' : 'none';
+      appEl.style.bottom = `${height}px`;
+    }
+    const ws = this.getWorkspace();
+    if (ws) {
+      try {
+        ws.resize();
+      } catch {}
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('resize'));
+    }
   }
 
   private onResizerPointerDown = (e: PointerEvent): void => {
@@ -156,6 +174,7 @@ export class TradingPanel {
     const newH = Math.min(maxH, Math.max(100, this.startHeight + dy));
     this.preferredHeight = newH;
     this.panelEl.style.height = `${newH}px`;
+    this.syncWorkspaceOffset(newH, false);
   };
 
   private onResizerPointerUp = (): void => {
@@ -170,6 +189,7 @@ export class TradingPanel {
         grip.style.width = '40px';
       }
     }
+    this.syncWorkspaceOffset(this.preferredHeight, true);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     window.removeEventListener('pointermove', this.onResizerPointerMove);
@@ -226,6 +246,7 @@ export class TradingPanel {
 
   public toggle(): void {
     this.isExpanded = !this.isExpanded;
+    this.syncWorkspaceOffset(this.isExpanded ? this.preferredHeight : 36, true);
     this.render();
   }
 
@@ -270,7 +291,9 @@ export class TradingPanel {
       }
     }
 
-    this.panelEl.style.height = this.isExpanded ? `${this.preferredHeight}px` : '36px';
+    const currentH = this.isExpanded ? this.preferredHeight : 36;
+    this.panelEl.style.height = `${currentH}px`;
+    this.syncWorkspaceOffset(currentH, true);
 
     this.panelEl.innerHTML = `
       <!-- Docked Header Bar -->

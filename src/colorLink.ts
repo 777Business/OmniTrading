@@ -209,11 +209,11 @@ export function renderColorLinkBadge(
 export function updateBadgeElement(btn: HTMLElement, grp: ColorGroup): void {
   const isNone = grp.id === 'none';
   btn.style.color = grp.hex;
-  btn.style.borderColor = isNone ? 'rgba(148, 163, 184, 0.25)' : grp.borderHex;
-  btn.style.backgroundColor = isNone ? 'rgba(15, 23, 42, 0.7)' : `color-mix(in srgb, ${grp.hex} 22%, rgba(15, 23, 42, 0.85))`;
+  btn.style.borderColor = isNone ? 'var(--vela-border, #263039)' : grp.borderHex;
+  btn.style.backgroundColor = isNone ? 'rgba(255, 255, 255, 0.04)' : `color-mix(in srgb, ${grp.hex} 16%, rgba(18, 22, 28, 0.9))`;
 
   btn.innerHTML = `
-    <span class="omni-link-dot" style="background:${grp.hex};"></span>
+    <span class="omni-link-dot" style="background:${grp.hex}; ${isNone ? 'opacity:0.4;' : 'box-shadow: 0 0 5px ' + grp.hex + ';' }"></span>
     <span class="omni-link-svg">${isNone ? UNLINKED_ICON_SVG : LINK_ICON_SVG}</span>
   `;
 }

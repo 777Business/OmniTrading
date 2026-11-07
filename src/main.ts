@@ -200,8 +200,8 @@ try {
     label: 'Watchlist',
     icon: 'watchlist',
     order: 86,
-    run: (ctx: any) => {
-      ctx?.togglePanel?.('vela.watchlist');
+    run: () => {
+      watchlist.toggle();
     },
   });
 
@@ -553,12 +553,17 @@ function attachCellControls(ws: VelaWorkspace): void {
       const cornerBadge = renderColorLinkBadge(cell, ws, 'corner', showToast);
       bar.appendChild(cornerBadge);
 
+      // Separator
+      const sep = document.createElement('span');
+      sep.className = 'vela-corner-sep';
+      bar.appendChild(sep);
+
       // Add chart '+' button
       const addBtn = document.createElement('button');
       addBtn.type = 'button';
       addBtn.className = 'vela-corner-btn add-btn';
       addBtn.title = 'Duplicate Chart (All Settings)';
-      addBtn.innerHTML = '+';
+      addBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>';
       addBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const targetId = bar?.dataset.cellId || cell.id;
@@ -571,7 +576,7 @@ function attachCellControls(ws: VelaWorkspace): void {
       closeBtn.type = 'button';
       closeBtn.className = 'vela-corner-btn close-btn';
       closeBtn.title = `Close ${cell.symbol || 'chart'}`;
-      closeBtn.innerHTML = '✕';
+      closeBtn.innerHTML = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>';
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const targetId = bar?.dataset.cellId || cell.id;
