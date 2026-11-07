@@ -1,0 +1,41 @@
+{
+  "name": "omni-trading",
+  "version": "0.1.0",
+  "description": "Fast, local, private, fully customizable trading platform. Bring your own broker.",
+  "main": "server/omni-server.mjs",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/patch-vela.cjs && esbuild src/main.ts --bundle --format=iife --target=es2022 --outfile=dist/app.js",
+    "postinstall": "node scripts/patch-vela.cjs",
+    "start": "node server/start.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "add:pine": "npm install --no-save @luxalgo/vela-pinets pinets && esbuild scripts/pine-entry.js --bundle --format=iife --target=es2022 --outfile=dist/pine-engine.js"
+  },
+  "keywords": [
+    "trading",
+    "trading-platform",
+    "charts",
+    "forex",
+    "typescript",
+    "open-source",
+    "financial-charts",
+    "paper-trading"
+  ],
+  "author": "777Business",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/777Business/OmniTrading.git"
+  },
+  "bugs": {
+    "url": "https://github.com/777Business/OmniTrading/issues"
+  },
+  "homepage": "https://github.com/777Business/OmniTrading#readme",
+  "dependencies": {
+    "@luxalgo/vela": "0.10.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

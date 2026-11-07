@@ -1,0 +1,35 @@
+name: New Broker Adapter Request
+description: Request a new broker or exchange adapter for OmniTrading
+title: "[Adapter Request]: "
+labels: ["broker-adapter", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        OmniTrading is designed to be broker-neutral. Request a new adapter below.
+  - type: input
+    id: broker_name
+    attributes:
+      label: Broker / Exchange Name
+      description: Name of the broker or trading venue.
+      placeholder: e.g., Interactive Brokers, Bybit, DXtrade
+    validations:
+      required: true
+  - type: input
+    id: api_docs
+    attributes:
+      label: Official API Documentation URL
+      description: Link to the broker's official developer documentation.
+      placeholder: https://...
+    validations:
+      required: true
+  - type: textarea
+    id: sandbox
+    attributes:
+      label: Sandbox / Demo Environment Availability
+      description: Does this broker provide a free sandbox or demo environment for testing?
+  - type: textarea
+    id: details
+    attributes:
+      label: Additional Information
+      description: Any details regarding authentication (OAuth vs API Key), rate limits, or protocols (WebSocket vs REST).

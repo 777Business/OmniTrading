@@ -1,0 +1,26 @@
+# Dependencies & build
+node_modules/
+dist/
+
+# User custom indicators (keep personal indicators private)
+custom-indicators/
+
+# Environment variables & local secrets
+.env
+.env.local
+.env.*.local
+auth.json
+*.pem
+*.key
+
+# Runtime data & logs
+*.log
+*.tmp
+server.log
+data/
+credentials/
+.omni-trading/
+
+# OS metadata
+.DS_Store
+Thumbs.db

@@ -1,0 +1,32 @@
+//@version=5
+// OmniTrading Reference Indicator: Dual Momentum & RSI Oscillator
+//
+// Copyright (c) 2026 777Business
+// Licensed under the MIT License.
+//
+// This is an educational reference indicator demonstrating how to write,
+// format, and load indicators into the OmniTrading platform.
+//
+indicator("OmniTrading Dual Momentum & RSI", shorttitle="Omni RSI", overlay=false)
+
+// Input parameters
+int rsi_len = input.int(14, "RSI Length", minval=1)
+int ma_len  = input.int(9, "Signal MA Length", minval=1)
+int ob_lvl  = input.int(70, "Overbought Level")
+int os_lvl  = input.int(30, "Oversold Level")
+
+// Indicator calculations
+float rsi_val = ta.rsi(close, rsi_len)
+float signal_ma = ta.sma(rsi_val, ma_len)
+
+// Dynamic coloring based on levels
+color rsi_color = rsi_val >= ob_lvl ? #ef4444 : rsi_val <= os_lvl ? #22c55e : #38bdf8
+
+// Plots
+plot(rsi_val, "RSI", color=rsi_color, linewidth=2)
+plot(signal_ma, "Signal SMA", color=#f59e0b, linewidth=1)
+
+// Reference threshold lines
+hline(ob_lvl, "Overbought", color=#ef4444, linestyle=hline.style_dashed)
+hline(50, "Midline", color=#64748b, linestyle=hline.style_dotted)
+hline(os_lvl, "Oversold", color=#22c55e, linestyle=hline.style_dashed)

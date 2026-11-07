@@ -1,0 +1,25 @@
+# OmniTrading Docker Compose Configuration
+#
+# IMPORTANT: When running via Docker on 0.0.0.0, OmniTrading requires OMNI_AUTH_TOKEN
+# to prevent unauthorized network access to your trading endpoints.
+#
+services:
+  omni-trading:
+    build: .
+    container_name: omni-trading
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8787
+      # Replace with a strong secret token before deploying:
+      - OMNI_AUTH_TOKEN=change-me-to-a-secure-random-token
+    volumes:
+      # Mount custom indicators directory to persist your personal indicators
+      - ./custom-indicators:/app/custom-indicators
+      # Mount config directory to persist local credentials
+      - omni-config:/app/.config/omni-trading
+
+volumes:
+  omni-config:
