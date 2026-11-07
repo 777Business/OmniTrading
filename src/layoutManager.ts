@@ -387,6 +387,10 @@ export function addChartCell(
                   props: { ...(rec.propValues ?? {}) },
                 });
               } else if (rec.source) {
+                // If this is a Pine script and Pine engine is not installed, skip cloning to avoid error toast
+                if (rec.options?.language === 'pine' && !(window as any).PineWorkerEngine) {
+                  continue;
+                }
                 newCell.chart.addIndicator(rec.source, {
                   ...(rec.options ?? {}),
                   inputs: { ...(rec.inputValues ?? {}) },
@@ -484,6 +488,10 @@ export function duplicateIndicator(
         props: { ...(record.propValues ?? {}) },
       });
     } else if (record?.source) {
+      if ((record.options?.language === 'pine' || foundHandle?.language === 'pine') && !(window as any).PineWorkerEngine) {
+        if (onToast) onToast('Install optional Pine add-on to run Pine indicators');
+        return false;
+      }
       foundCell.chart.addIndicator(record.source, {
         ...(record.options ?? {}),
         inputs: { ...(record.inputValues ?? {}) },

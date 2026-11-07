@@ -594,7 +594,7 @@ const server = http.createServer(async (req, res) => {
                 name,
                 url: `${d.prefix}${file}`,
                 language: file.endsWith('.pine') ? 'pine' : 'typescript',
-                enabled: true,
+                enabled: false,
               });
             }
           }
