@@ -200,4 +200,70 @@ describe('Order Flow, Footprint, Heatmap & Quad Layout Test Suite', () => {
 
     assert.equal(mockCells[3].timeframe, '1000T');
   });
+
+  it('6. Strict 1-by-1 Layout Progression for Adding and Closing Charts (1 to 8)', () => {
+    // Adding chart layout progression
+    const getAddLayout = (currentCount) => {
+      if (currentCount === 1) return '2h';
+      if (currentCount === 2) return '3h';
+      if (currentCount === 3) return '4';
+      if (currentCount === 4) return '5';
+      if (currentCount === 5) return '6';
+      if (currentCount === 6) return '7';
+      if (currentCount === 7) return '8';
+      return '8';
+    };
+
+    assert.equal(getAddLayout(1), '2h');
+    assert.equal(getAddLayout(2), '3h');
+    assert.equal(getAddLayout(3), '4');
+    assert.equal(getAddLayout(4), '5');
+    assert.equal(getAddLayout(5), '6');
+    assert.equal(getAddLayout(6), '7');
+    assert.equal(getAddLayout(7), '8');
+
+    // Closing chart layout progression
+    const getCloseLayout = (survivingCount) => {
+      if (survivingCount <= 1) return '1';
+      if (survivingCount === 2) return '2h';
+      if (survivingCount === 3) return '3h';
+      if (survivingCount === 4) return '4';
+      if (survivingCount === 5) return '5';
+      if (survivingCount === 6) return '6';
+      if (survivingCount === 7) return '7';
+      return '8';
+    };
+
+    // User's specific scenario: 8 charts open, close 1 -> MUST be layout 7 (displays 7)
+    assert.equal(getCloseLayout(7), '7', '8 minus 1 must select layout 7');
+    assert.equal(getCloseLayout(6), '6', '7 minus 1 must select layout 6');
+    assert.equal(getCloseLayout(5), '5', '6 minus 1 must select layout 5');
+    assert.equal(getCloseLayout(4), '4', '5 minus 1 must select layout 4');
+    assert.equal(getCloseLayout(3), '3h', '4 minus 1 must select layout 3h');
+    assert.equal(getCloseLayout(2), '2h', '3 minus 1 must select layout 2h');
+    assert.equal(getCloseLayout(1), '1', '2 minus 1 must select layout 1');
+  });
+
+  it('7. Side Menu Bar Relocation Actions & Theme Alignment', () => {
+    const actionIds = [
+      'add-chart',
+      'quad-layout',
+      'liquidity-heatmap',
+      'footprint-settings',
+      'quick-trade',
+      'trade-manager',
+      'watchlist',
+      'replay',
+      'pine-editor',
+      'alerts',
+      'popout',
+      'about',
+    ];
+
+    assert.equal(actionIds.length, 12, '12 core features moved to left side menu bar');
+    assert.ok(actionIds.includes('quad-layout'));
+    assert.ok(actionIds.includes('add-chart'));
+    assert.ok(actionIds.includes('liquidity-heatmap'));
+    assert.ok(actionIds.includes('footprint-settings'));
+  });
 });

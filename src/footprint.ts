@@ -913,15 +913,4 @@ export function registerFootprintStyle(): void {
     placement: 'above-data',
     create: () => new FootprintRendererLayer(),
   });
-
-  registerWidgetAction({
-    id: 'vela.footprint-settings',
-    target: 'topbar',
-    label: 'Footprint Settings',
-    icon: 'fp-settings',
-    order: 81.5,
-    run: () => {
-      openFootprintSettingsModal();
-    },
-  });
 }

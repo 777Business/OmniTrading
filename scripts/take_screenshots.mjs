@@ -86,12 +86,62 @@ async function run() {
   console.log('[screenshot-script] Waiting 5 seconds for chart and market data to render...');
   await sleep(5000);
 
-  // Take Screenshot 1: Default view
-  console.log('[screenshot-script] Capturing default view...');
+  // Take Screenshot 1: Default view showing clean topbar and side menu bar
+  console.log('[screenshot-script] Capturing default clean view with side menu...');
   let shot = await send('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(path.join(ARTIFACT_DIR, 'screenshot_1_default.png'), Buffer.from(shot.data, 'base64'));
 
-  // Trigger Order Flow Quad Layout
+  // Test adding charts up to 8
+  console.log('[screenshot-script] Adding charts up to 8...');
+  const addResult = await send('Runtime.evaluate', {
+    expression: `
+      (async () => {
+        if (!window.layoutManager || !window.workspace) return { error: 'no workspace' };
+        for (let i = 0; i < 7; i++) {
+          window.layoutManager.addChartCell(window.workspace);
+          await new Promise(r => setTimeout(r, 200));
+        }
+        return {
+          cellCount: window.workspace.order ? window.workspace.order.length : 0,
+          layout: window.workspace.layout ? window.workspace.layout.name : null
+        };
+      })()
+    `,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  console.log('[screenshot-script] 8-chart add result:', addResult.result?.value);
+  await sleep(1500);
+
+  shot = await send('Page.captureScreenshot', { format: 'png' });
+  fs.writeFileSync(path.join(ARTIFACT_DIR, 'screenshot_8_charts.png'), Buffer.from(shot.data, 'base64'));
+
+  // Test closing 1 chart (should result in exactly 7 charts)
+  console.log('[screenshot-script] Closing 1 chart from 8...');
+  const closeResult = await send('Runtime.evaluate', {
+    expression: `
+      (async () => {
+        if (!window.layoutManager || !window.workspace) return { error: 'no workspace' };
+        const order = window.workspace.order || [];
+        const lastCellId = order[order.length - 1];
+        window.layoutManager.closeCell(window.workspace, lastCellId);
+        await new Promise(r => setTimeout(r, 300));
+        return {
+          cellCount: window.workspace.order ? window.workspace.order.length : 0,
+          layout: window.workspace.layout ? window.workspace.layout.name : null
+        };
+      })()
+    `,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  console.log('[screenshot-script] 7-chart close result:', closeResult.result?.value);
+  await sleep(1500);
+
+  shot = await send('Page.captureScreenshot', { format: 'png' });
+  fs.writeFileSync(path.join(ARTIFACT_DIR, 'screenshot_7_charts.png'), Buffer.from(shot.data, 'base64'));
+
+  // Switch to Quad Layout
   console.log('[screenshot-script] Applying Order Flow Quad Layout...');
   await send('Runtime.evaluate', {
     expression: `
@@ -99,10 +149,9 @@ async function run() {
         window.layoutManager.applyOrderFlowQuadLayout(window.workspace);
       }
     `,
-    awaitPromise: true,
   });
 
-  await sleep(4000);
+  await sleep(3000);
 
   console.log('[screenshot-script] Capturing Order Flow Quad Layout...');
   shot = await send('Page.captureScreenshot', { format: 'png' });

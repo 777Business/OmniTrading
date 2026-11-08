@@ -327,18 +327,4 @@ export function registerLiquidityHeatmap(): void {
     placement: 'below-data',
     create: () => new LiquidityHeatmapRendererLayer(),
   });
-
-  registerWidgetAction({
-    id: 'vela.toggle-liquidity-heatmap',
-    target: 'topbar',
-    label: 'Heatmap',
-    icon: 'liquidity-heatmap',
-    order: 81.8,
-    run: () => {
-      const active = toggleLiquidityHeatmap();
-      if (typeof window !== 'undefined' && (window as any).showToast) {
-        (window as any).showToast(`Liquidity Heatmap: ${active ? 'ENABLED' : 'DISABLED'}`);
-      }
-    },
-  });
 }

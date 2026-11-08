@@ -14,7 +14,7 @@ import {
   BUILTIN_THEMES,
 } from './theme';
 
-// Register custom 3-chart and 6-chart layouts so Vela natively handles 1, 2, 3, 4, 6, 8 charts
+// Register custom layouts so Vela natively handles 1, 2, 3, 4, 5, 6, 7, 8 charts
 try {
   registerLayout({
     id: '3h',
@@ -24,11 +24,39 @@ try {
     cells: Array.from({ length: 3 }, (_, i) => ({ id: `c${i + 1}` })),
   });
   registerLayout({
+    id: '5',
+    label: '5 grid' as any,
+    cols: [1, 1, 1, 1, 1, 1],
+    rows: [1, 1],
+    cells: [
+      { id: 'c1', area: '1 / 1 / 2 / 3' },
+      { id: 'c2', area: '1 / 3 / 2 / 5' },
+      { id: 'c3', area: '1 / 5 / 2 / 7' },
+      { id: 'c4', area: '2 / 1 / 3 / 4' },
+      { id: 'c5', area: '2 / 4 / 3 / 7' },
+    ],
+  });
+  registerLayout({
     id: '6',
     label: '6 grid' as any,
     cols: [1, 1, 1],
     rows: [1, 1],
     cells: Array.from({ length: 6 }, (_, i) => ({ id: `c${i + 1}` })),
+  });
+  registerLayout({
+    id: '7',
+    label: '7 grid' as any,
+    cols: Array(12).fill(1),
+    rows: [1, 1],
+    cells: [
+      { id: 'c1', area: '1 / 1 / 2 / 4' },
+      { id: 'c2', area: '1 / 4 / 2 / 7' },
+      { id: 'c3', area: '1 / 7 / 2 / 10' },
+      { id: 'c4', area: '1 / 10 / 2 / 13' },
+      { id: 'c5', area: '2 / 1 / 3 / 5' },
+      { id: 'c6', area: '2 / 5 / 3 / 9' },
+      { id: 'c7', area: '2 / 9 / 3 / 13' },
+    ],
   });
 } catch (e) {
   console.warn('[vela] layout registration:', e);
@@ -278,12 +306,15 @@ export function addChartCell(
   }
 
   try {
-    // 1. Next layout progression
+    // 1. Next layout progression (strictly 1 to 8 charts)
     let targetLayout = '2h';
     if (currentCount === 1) targetLayout = '2h';
     else if (currentCount === 2) targetLayout = '3h';
     else if (currentCount === 3) targetLayout = '4';
-    else if (currentCount >= 4 && currentCount < 6) targetLayout = '6';
+    else if (currentCount === 4) targetLayout = '5';
+    else if (currentCount === 5) targetLayout = '6';
+    else if (currentCount === 6) targetLayout = '7';
+    else if (currentCount === 7) targetLayout = '8';
     else targetLayout = '8';
 
     // 2. Identify source cell
@@ -554,18 +585,21 @@ export function closeCell(
   }
 
   try {
-    const targetCell = ws.cellsById.get(cellId);
+    const targetCell = ws.cellsById?.get(cellId) || cells.find((c: any) => c.id === cellId);
+    const resolvedId = targetCell?.id || cellId;
     const targetSymbol = targetCell?.symbol || 'Chart';
 
     // 1. Remove from color links
-    removeCellFromColorLink(cellId);
+    removeCellFromColorLink(resolvedId);
 
     // 2. Identify surviving cells
-    const remainingCells = cells.filter((c: any) => c.id !== cellId);
-    const remainingIds = (ws.order || []).filter((id: string) => id !== cellId);
+    let remainingIds = (ws.order || []).filter((id: string) => id !== resolvedId);
+    if (remainingIds.length === 0) {
+      remainingIds = cells.filter((c: any) => c.id !== resolvedId).map((c: any) => c.id);
+    }
 
     // 3. If target cell was active, switch active to a surviving chart first
-    if (ws.activeId === cellId && remainingIds.length > 0) {
+    if (ws.activeId === resolvedId && remainingIds.length > 0) {
       ws.setActiveCell(remainingIds[0]);
     }
 
@@ -574,21 +608,24 @@ export function closeCell(
 
     // 5. Cleanly destroy target cell
     if (targetCell) {
-      targetCell.destroy();
-      ws.cellsById.delete(cellId);
-      ws.pool?.delete(cellId);
-      ws.events.emit('cell:destroyed', { id: cellId });
+      try {
+        targetCell.destroy();
+      } catch {}
+      ws.cellsById?.delete(resolvedId);
+      ws.pool?.delete(resolvedId);
+      ws.events?.emit?.('cell:destroyed', { id: resolvedId });
     }
 
-    // 6. Calculate new layout for surviving count
-    const survivingCount = ws.cellsById.size;
+    // 6. Calculate new layout for surviving count (strictly 1 to 7)
+    const survivingCount = Math.min(7, Math.max(1, remainingIds.length));
     let targetLayout = '1';
     if (survivingCount <= 1) targetLayout = '1';
     else if (survivingCount === 2) targetLayout = '2h';
     else if (survivingCount === 3) targetLayout = '3h';
     else if (survivingCount === 4) targetLayout = '4';
-    else if (survivingCount <= 6) targetLayout = '6';
-    else targetLayout = '8';
+    else if (survivingCount === 5) targetLayout = '5';
+    else if (survivingCount === 6) targetLayout = '6';
+    else if (survivingCount === 7) targetLayout = '7';
 
     // 7. Apply layout
     ws.setLayout(targetLayout);

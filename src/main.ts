@@ -83,6 +83,7 @@ import { ReplayManager } from './replay';
 import { openAboutModal } from './ui/aboutModal';
 import { initUpdateChecker } from './ui/updateModal';
 import { openCustomTimeframeModal } from './ui/customTimeframeModal';
+import { SideMenuBar } from './ui/sideMenuBar';
 import { registerFootprintStyle, openFootprintSettingsModal } from './footprint';
 import { registerLiquidityHeatmap, toggleLiquidityHeatmap } from './heatmap';
 import { TickAggregator } from './tickChart';
@@ -172,61 +173,6 @@ try {
   );
 
   registerWidgetAction({
-    id: 'omni.orderflow-quad-layout',
-    target: 'topbar',
-    label: 'Quad Layout',
-    icon: 'quad-layout',
-    order: 81.9,
-    run: () => {
-      if (workspace) applyOrderFlowQuadLayout(workspace, showToast);
-    },
-  });
-
-  registerWidgetAction({
-    id: 'vela.add-chart-cell',
-    target: 'topbar',
-    label: 'Add Chart (+)',
-    icon: 'split-chart',
-    order: 82,
-    run: () => {
-      if (workspace) addChartCell(workspace, undefined, showToast);
-    },
-  });
-
-  registerWidgetAction({
-    id: 'vela.bar-replay',
-    target: 'topbar',
-    label: 'Replay',
-    icon: 'bar-replay',
-    order: 83,
-    run: () => {
-      replayManager.toggle();
-    },
-  });
-
-  registerWidgetAction({
-    id: 'vela.pine-script-editor',
-    target: 'topbar',
-    label: 'Pine Editor',
-    icon: 'code-editor',
-    order: 84,
-    run: () => {
-      pineEditor.open();
-    },
-  });
-
-  registerWidgetAction({
-    id: 'vela.manage-alerts-topbar',
-    target: 'topbar',
-    label: 'Alerts',
-    icon: 'alerts-bell',
-    order: 85,
-    run: () => {
-      if (workspace) openManageAlertsModal(workspace, showToast);
-    },
-  });
-
-  registerWidgetAction({
     id: 'omni.custom-timeframe',
     target: 'topbar',
     label: '+ Timeframe',
@@ -241,63 +187,123 @@ try {
       });
     },
   });
-
-  registerWidgetAction({
-    id: 'vela.toggle-watchlist',
-    target: 'topbar',
-    label: 'Watchlist',
-    icon: 'watchlist',
-    order: 86,
-    run: () => {
-      watchlist.toggle();
-    },
-  });
-
-  registerWidgetAction({
-    id: 'vela.toggle-quick-trade',
-    target: 'topbar',
-    label: 'Quick Trade',
-    icon: 'trade-quick',
-    order: 87,
-    run: () => {
-      quickTrade.toggleVisibility();
-    },
-  });
-
-  registerWidgetAction({
-    id: 'vela.toggle-trading-panel',
-    target: 'topbar',
-    label: 'Trade Manager',
-    icon: 'trade-quick',
-    order: 87.5,
-    run: () => {
-      tradingPanel.toggle();
-    },
-  });
-
-  registerWidgetAction({
-    id: 'vela.popout-chart',
-    target: 'topbar',
-    label: 'Pop Out (New Window)',
-    icon: 'popout-window',
-    order: 88,
-    run: () => {
-      openPopoutWindow();
-    },
-  });
-
-  registerWidgetAction({
-    id: 'omni.about',
-    target: 'topbar',
-    label: 'About',
-    icon: 'info-about',
-    order: 89,
-    run: () => {
-      openAboutModal();
-    },
-  });
 } catch {
   /* ignore */
+}
+
+let sideMenuBar: SideMenuBar | null = null;
+
+function initSideMenuBar(): void {
+  if (sideMenuBar) {
+    sideMenuBar.refresh();
+    return;
+  }
+  sideMenuBar = new SideMenuBar(
+    () => workspace,
+    showToast,
+    [
+      {
+        id: 'add-chart',
+        title: 'Add Chart (+)',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><line x1="8" y1="2.5" x2="8" y2="13.5"/></svg>',
+        run: () => {
+          if (workspace) addChartCell(workspace, undefined, showToast);
+        },
+      },
+      {
+        id: 'quad-layout',
+        title: 'Order Flow Quad Layout (4-in-1)',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><line x1="8" y1="2.5" x2="8" y2="13.5"/><line x1="2.5" y1="8" x2="13.5" y2="8"/></svg>',
+        run: () => {
+          if (workspace) applyOrderFlowQuadLayout(workspace, showToast);
+        },
+      },
+      {
+        id: 'liquidity-heatmap',
+        title: 'Toggle Liquidity Heatmap',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2" stroke="#eab308"/><line x1="2" y1="5" x2="14" y2="5" stroke="#ef4444" stroke-width="1.5"/><line x1="2" y1="8" x2="14" y2="8" stroke="#22d3a5" stroke-width="0.8" stroke-dasharray="1 1"/><line x1="2" y1="11" x2="14" y2="11" stroke="#38bdf8" stroke-width="1.8"/></svg>',
+        run: () => {
+          const active = toggleLiquidityHeatmap();
+          showToast(`Liquidity Heatmap: ${active ? 'ENABLED' : 'DISABLED'}`);
+        },
+      },
+      {
+        id: 'footprint-settings',
+        title: 'Footprint Settings',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3"/></svg>',
+        run: () => {
+          openFootprintSettingsModal();
+        },
+      },
+      {
+        id: 'quick-trade',
+        title: 'Quick Trade',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 10.5 6 7l2.5 2.5L13.5 4.5"/><path d="M10 4.5h3.5V8"/></svg>',
+        run: () => {
+          quickTrade.toggleVisibility();
+        },
+        isActive: () => quickTrade.isVisible(),
+      },
+      {
+        id: 'trade-manager',
+        title: 'Trade Manager (Positions & Orders)',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="11" height="9" rx="1.5"/><path d="M6 3.5V2.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1"/><line x1="2.5" y1="7" x2="13.5" y2="7"/></svg>',
+        run: () => {
+          tradingPanel.toggle();
+        },
+        isActive: () => tradingPanel.isOpen(),
+      },
+      {
+        id: 'watchlist',
+        title: 'Watchlist',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 2.5h9v11L8 10.5l-4.5 3v-11z"/></svg>',
+        run: () => {
+          watchlist.toggle();
+        },
+        isActive: () => watchlist.isOpen(),
+      },
+      {
+        id: 'replay',
+        title: 'Bar Replay',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6.5 4 2.5 8 6.5 12"/><polyline points="13.5 4 9.5 8 13.5 12"/><line x1="2.5" y1="4" x2="2.5" y2="12"/></svg>',
+        run: () => {
+          replayManager.toggle();
+        },
+      },
+      {
+        id: 'pine-editor',
+        title: 'Pine Script Code Editor (Alt+P)',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 4 1.5 8 5 12"/><polyline points="11 4 14.5 8 11 12"/><line x1="9.5" y1="2.5" x2="6.5" y2="13.5"/></svg>',
+        run: () => {
+          pineEditor.open();
+        },
+      },
+      {
+        id: 'alerts',
+        title: 'Price Alerts',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V6a4 4 0 0 1 8 0v5l1.5 2H2.5L4 11z"/><path d="M6.5 13a1.5 1.5 0 0 0 3 0"/></svg>',
+        run: () => {
+          if (workspace) openManageAlertsModal(workspace, showToast);
+        },
+      },
+      {
+        id: 'popout',
+        title: 'Pop Out (New Window)',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9.5V13.5H2.5V4H6.5"/><polyline points="9.5 2.5 13.5 2.5 13.5 6.5"/><line x1="7" y1="9" x2="13.5" y2="2.5"/></svg>',
+        run: () => {
+          openPopoutWindow();
+        },
+      },
+      {
+        id: 'about',
+        title: 'About OmniTrading',
+        iconSvg: '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><line x1="8" y1="11" x2="8" y2="7.5"/><line x1="8" y1="5" x2="8.01" y2="5"/></svg>',
+        run: () => {
+          openAboutModal();
+        },
+      },
+    ]
+  );
 }
 
 function openPopoutWindow(): void {
@@ -872,6 +878,7 @@ async function mountApp(initialSymbol?: string, initialTf?: string): Promise<voi
   (window as any).omniWorkspace = workspace;
   (window as any).workspace = workspace;
 
+  initSideMenuBar();
   initWorkspaceFeatures(workspace);
   mountTopbarControls();
   checkRiskDisclaimer();
