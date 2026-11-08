@@ -79,6 +79,17 @@ export const BUILTIN_TEMPLATES: ChartTemplate[] = [
       },
     },
   },
+  {
+    name: 'Order Flow Quad (4-in-1)',
+    builtin: true,
+    config: {
+      series: { spacing: 0.6, style: 'footprint' },
+      grid: {
+        horizontal: { visible: false },
+        vertical: { visible: false },
+      },
+    },
+  },
 ];
 
 export function getChartTemplates(): ChartTemplate[] {

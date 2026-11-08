@@ -142,15 +142,31 @@ export class UniversalMarketDataProvider implements DataProvider {
     const now = Date.now();
     const bars: OHLCV[] = [];
     const base = clean.includes('JPY') ? 150.0 : clean.includes('USD') && clean.length === 6 ? 1.085 : 100.0;
+    const tfUpper = String(timeframe || '').toUpperCase();
+    let stepMs = 15 * 60 * 1000;
+    let barVolume = 100;
+
+    if (tfUpper.endsWith('T')) {
+      const ticks = parseInt(tfUpper, 10) || 100;
+      stepMs = Math.max(1000, Math.round(ticks * 80));
+      barVolume = ticks;
+    } else if (tfUpper.endsWith('R')) {
+      stepMs = 10000;
+    } else if (tfUpper.endsWith('S')) {
+      stepMs = (parseInt(tfUpper, 10) || 15) * 1000;
+    } else {
+      stepMs = (parseInt(timeframe, 10) || 15) * 60_000;
+    }
+
     for (let i = 100; i >= 0; i--) {
-      const time = now - i * 15 * 60 * 1000;
+      const time = now - i * stepMs;
       bars.push({
         time,
         open: base,
         high: base * 1.002,
         low: base * 0.998,
         close: base,
-        volume: 100,
+        volume: barVolume,
       });
     }
     this.lastBars.set(clean, bars[bars.length - 1]);
@@ -174,6 +190,17 @@ export class UniversalMarketDataProvider implements DataProvider {
       };
       this.activeSubscriptions.set(key, sub);
 
+      const tfUpper = String(timeframe || '').toUpperCase();
+      const targetTicks = tfUpper.endsWith('T') ? parseInt(tfUpper, 10) || 100 : 0;
+      const isTickChart = targetTicks > 0;
+      const targetRange = tfUpper.endsWith('R') ? parseInt(tfUpper, 10) || 10 : 0;
+      const isRangeChart = targetRange > 0;
+      const barDurationMs = tfUpper.endsWith('S')
+        ? (parseInt(tfUpper, 10) || 15) * 1000
+        : (parseInt(timeframe, 10) || 1) * 60_000;
+
+      let currentTicksInBar = 0;
+
       // Start live tick interval for this symbol
       sub.timer = setInterval(() => {
         let last = this.lastBars.get(clean);
@@ -186,16 +213,45 @@ export class UniversalMarketDataProvider implements DataProvider {
         // Random micro tick (-1, 0, +1)
         const delta = (Math.floor(Math.random() * 3) - 1) * tickStep * 1.5;
         const newClose = Number((last.close + delta).toFixed(digits));
-        const newHigh = Math.max(last.high, newClose);
-        const newLow = Math.min(last.low, newClose);
+
+        let isNewBar = false;
+        let barTime = last.time;
+        const now = Date.now();
+
+        if (isTickChart) {
+          currentTicksInBar++;
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('omni:tick-progress', {
+                detail: { symbol: clean, current: currentTicksInBar, target: targetTicks },
+              }),
+            );
+          }
+          if (currentTicksInBar >= targetTicks) {
+            isNewBar = true;
+            currentTicksInBar = 0;
+            barTime = now;
+          }
+        } else if (isRangeChart) {
+          const pipSize = spec?.pipPosition ? 1 / Math.pow(10, spec.pipPosition) : tickStep;
+          const rangeTraveled = Math.abs(newClose - last.open) / pipSize;
+          if (rangeTraveled >= targetRange) {
+            isNewBar = true;
+            barTime = now;
+          }
+        } else {
+          const currentBucket = Math.floor(now / barDurationMs) * barDurationMs;
+          isNewBar = last.time < currentBucket;
+          barTime = isNewBar ? currentBucket : last.time;
+        }
 
         const updated: OHLCV = {
-          time: last.time,
-          open: last.open,
-          high: newHigh,
-          low: newLow,
+          time: barTime,
+          open: isNewBar ? newClose : last.open,
+          high: isNewBar ? newClose : Math.max(last.high, newClose),
+          low: isNewBar ? newClose : Math.min(last.low, newClose),
           close: newClose,
-          volume: (last.volume || 0) + 1,
+          volume: isNewBar ? 1 : (last.volume || 0) + 1,
         };
 
         this.lastBars.set(clean, updated);

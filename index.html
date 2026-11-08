@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>OmniTrading</title>
     <link rel="icon" type="image/svg+xml" href="/omni-icon.svg" />
     <style>
@@ -1207,6 +1207,69 @@
         border-top: 1px solid rgba(255, 255, 255, 0.06);
         padding-top: 5px;
         margin-top: 4px;
+      }
+
+      /* ---- Mobile & Responsive Phone Optimizations (< 768px) ---- */
+      @media (max-width: 768px) {
+        body {
+          padding-top: env(safe-area-inset-top, 0px);
+          padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        #app {
+          bottom: 38px !important;
+        }
+
+        .omni-trading-panel {
+          height: 38px !important;
+          padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        .omni-panel-resizer {
+          display: none !important;
+        }
+
+        /* Responsive Modal Dialogs */
+        .ct-overlay, #omni-broker-modal, #omni-about-modal {
+          padding: 8px !important;
+          align-items: flex-end !important;
+        }
+
+        .ct-card, #omni-about-modal > div {
+          width: 96vw !important;
+          max-width: 96vw !important;
+          max-height: 88vh !important;
+          border-radius: 12px 12px 0 0 !important;
+        }
+
+        /* Broker Modal: stack sidebar above detail on phone screens */
+        #omni-broker-modal .ct-card > div[style*="display: flex; flex: 1"] {
+          flex-direction: column !important;
+          min-height: auto !important;
+          overflow-y: auto !important;
+        }
+
+        #omni-broker-modal .ct-card > div > div[style*="width: 260px"] {
+          width: 100% !important;
+          max-height: 160px !important;
+          border-right: none !important;
+          border-bottom: 1px solid var(--vela-border, #2a2b30) !important;
+        }
+
+        /* Corner controls scaled cleanly on small screens */
+        .vela-cell-corner-controls {
+          top: 4px !important;
+          right: 50px !important;
+          transform: scale(0.85);
+          transform-origin: top right;
+        }
+
+        /* Quick Trade compact mobile scaling */
+        .omni-quick-trade {
+          max-width: 92vw !important;
+          transform: scale(0.92);
+          transform-origin: top left;
+        }
       }
     </style>
   </head>

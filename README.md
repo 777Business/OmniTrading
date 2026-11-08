@@ -43,17 +43,19 @@ OmniTrading is an open-source, broker-neutral trading desktop application. It co
 
 ## Supported Brokers & Platforms
 
-OmniTrading is 100% broker-neutral. Active adapters ready out of the box:
+OmniTrading is 100% broker-neutral. Active adapters and integration status:
 
 | Broker / Platform | Adapter ID | Status | Auth Type | Markets | Environment | Official Documentation |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Paper Trading (Universal Multi-Asset)** | `paper` | **Stable (Default)** | None (Built-in) | Forex, Gold, Oil, Crypto, Stocks | Paper | *Built into OmniTrading* |
-| **Interactive Brokers (IBKR)** | `ibkr` | **Stable** | Client Portal / TWS | Global Multi-Asset (Stocks, FX, Futures) | Paper & Live | [IBKR Web API Docs](https://www.interactivebrokers.com/campus/ibkr-api-page/web-api/) |
-| **Binance** | `binance` | **Stable** | API Key / Secret | Crypto Spot & USDT-M Futures | Testnet & Live | [Binance API Docs](https://binance-docs.github.io/apidocs/spot/en/) |
-| **Alpaca Markets** | `alpaca` | **Stable** | API Key ID / Secret | US Equities, ETFs & Crypto | Paper & Live | [Alpaca Documentation](https://docs.alpaca.markets/) |
-| **OANDA** | `oanda` | **Stable** | Personal Access Token | Forex Majors & CFDs | Practice & Live | [OANDA v20 REST API](https://developer.oanda.com/rest-live-v20/introduction/) |
-| **MetaTrader 5 (MT5)** | `metatrader5` | **Stable** | Server Login / Gateway | Forex, Prop Firms (FTMO, IC Markets) | Demo & Live | [MetaTrader 5 Integration](https://www.mql5.com/en/docs/integration/python_metatrader5) |
-| **cTrader** | `ctrader` | **Stable** | OAuth / Open API | Forex & CFDs | Demo & Live | [cTrader Open API Docs](https://openapi.ctrader.com/apps) |
+| **Paper Trading (Universal Multi-Asset)** | `paper` | **Stable (Built-in Default)** | None (Zero-config) | Forex, Gold, Oil, Crypto, Stocks | Paper | *Built into OmniTrading* |
+| **cTrader** | `ctrader` | **Beta (Live Open API)** | OAuth / Open API | Forex & CFDs | Demo & Live | [cTrader Open API Docs](https://openapi.ctrader.com/apps) |
+| **MetaTrader 5 (MT5)** | `metatrader5` | **In Development** | Server Login / Gateway | Forex, Prop Firms (FTMO, IC Markets) | Demo & Live | [MT5 Bridge Guide](docs/MT5_GATEWAY.md) |
+| **Interactive Brokers (IBKR)** | `ibkr` | **In Development** | Client Portal / TWS | Global Multi-Asset (Stocks, FX, Futures) | Paper & Live | [IBKR Web API Docs](https://www.interactivebrokers.com/campus/ibkr-api-page/web-api/) |
+| **Binance** | `binance` | **In Development** | API Key / Secret | Crypto Spot & USDT-M Futures | Testnet & Live | [Binance API Docs](https://binance-docs.github.io/apidocs/spot/en/) |
+| **Alpaca Markets** | `alpaca` | **In Development** | API Key ID / Secret | US Equities, ETFs & Crypto | Paper & Live | [Alpaca Documentation](https://docs.alpaca.markets/) |
+| **OANDA** | `oanda` | **In Development** | Personal Access Token | Forex Majors & CFDs | Practice & Live | [OANDA v20 REST API](developer.oanda.com) |
+
+> 🛡️ **Transparency Guarantee**: Adapters marked **In Development** provide interface schemas and simulated execution in local memory while network communication layers are completed. Only **Paper Trading** and **cTrader** currently execute over direct feeds. Live account trading defaults to disabled.
 
 ### Universal Paper Trading Profiles
 
@@ -93,6 +95,7 @@ cd OmniTrading
 npm install
 npm start
 ```
+> **Note for npm 11+ on Windows**: If `esbuild` postinstall is blocked by your npm environment policy, run `npm rebuild esbuild` once before `npm start`, or use `npm run build`.
 
 ### macOS (Terminal)
 ```bash

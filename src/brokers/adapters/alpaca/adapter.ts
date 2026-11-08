@@ -29,7 +29,7 @@ export class AlpacaAdapter implements BrokerAdapter {
   public readonly id = 'alpaca';
   public readonly name = 'Alpaca Markets (US Stocks & Crypto)';
   public readonly description = 'Zero-commission US stocks, ETFs, and crypto via Alpaca Paper & Live API.';
-  public readonly status = 'stable';
+  public readonly status = 'in-development';
   public readonly supportedEnvironments: BrokerEnvironment[] = ['paper', 'live'];
 
   public readonly capabilities: BrokerCapabilities = {

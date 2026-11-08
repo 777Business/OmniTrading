@@ -112,11 +112,13 @@ export interface BrokerCapabilities {
   maxOrderVolume?: number;
 }
 
+export type BrokerAdapterStatus = 'stable' | 'beta' | 'in-development' | 'experimental';
+
 export interface BrokerAdapter {
   readonly id: string;
   readonly name: string;
   readonly description: string;
-  readonly status: 'stable' | 'experimental';
+  readonly status: BrokerAdapterStatus;
   readonly capabilities: BrokerCapabilities;
   readonly credentialSchema: CredentialSchema;
   readonly supportedEnvironments: BrokerEnvironment[];

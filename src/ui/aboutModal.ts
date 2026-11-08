@@ -1,6 +1,8 @@
 // OmniTrading About Dialog
 // Displays application information, legal attribution, and risk disclaimers.
 
+import { openUpdateModal } from './updateModal';
+
 export function openAboutModal(): void {
   const existing = document.getElementById('omni-about-modal');
   existing?.remove();
@@ -77,7 +79,10 @@ export function openAboutModal(): void {
       </div>
     </div>
 
-    <div style="padding:12px 20px;background:#0d1117;border-top:1px solid #2a2e39;display:flex;justify-content:flex-end;">
+    <div style="padding:12px 20px;background:#0d1117;border-top:1px solid #2a2e39;display:flex;justify-content:space-between;align-items:center;">
+      <button id="omni-about-check-update" style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+        ⚡ Check for Updates
+      </button>
       <button id="omni-about-ok" style="background:#2a2e39;border:1px solid #3b4252;color:#f8fafc;padding:6px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Close</button>
     </div>
   `;
@@ -88,6 +93,10 @@ export function openAboutModal(): void {
   const close = () => backdrop.remove();
   modal.querySelector('#omni-about-close')?.addEventListener('click', close);
   modal.querySelector('#omni-about-ok')?.addEventListener('click', close);
+  modal.querySelector('#omni-about-check-update')?.addEventListener('click', () => {
+    close();
+    openUpdateModal();
+  });
   backdrop.addEventListener('click', (e) => {
     if (e.target === backdrop) close();
   });

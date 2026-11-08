@@ -35,6 +35,7 @@ import {
   duplicateIndicator,
   applyCleanView,
   toggleGridlines,
+  applyOrderFlowQuadLayout,
 } from './layoutManager';
 
 import {
@@ -49,7 +50,14 @@ import {
 import * as colorLink from './colorLink';
 
 (window as any).colorLink = colorLink;
-(window as any).layoutManager = { addChartCell, closeCell, duplicateIndicator, saveLayout, loadLayout };
+(window as any).layoutManager = {
+  addChartCell,
+  closeCell,
+  duplicateIndicator,
+  saveLayout,
+  loadLayout,
+  applyOrderFlowQuadLayout,
+};
 
 import { WatchlistManager } from './watchlist';
 import { FavoritesBarController } from './favoritesBar';
@@ -73,7 +81,11 @@ import { SpreadVisualizer } from './spread';
 import { PineScriptEditor } from './pineEditor';
 import { ReplayManager } from './replay';
 import { openAboutModal } from './ui/aboutModal';
-import { registerFootprintStyle } from './footprint';
+import { initUpdateChecker } from './ui/updateModal';
+import { openCustomTimeframeModal } from './ui/customTimeframeModal';
+import { registerFootprintStyle, openFootprintSettingsModal } from './footprint';
+import { registerLiquidityHeatmap, toggleLiquidityHeatmap } from './heatmap';
+import { TickAggregator } from './tickChart';
 import { ChartPositionsOverlay } from './ui/chartPositionsOverlay';
 import { TradingPanel } from './ui/tradingPanel';
 
@@ -110,13 +122,17 @@ const replayManager = new ReplayManager(() => workspace, (msg) => showToast(msg)
 (window as any).__chartPositionsOverlay = chartPositionsOverlay;
 (window as any).__tradingPanel = tradingPanel;
 (window as any).__spreadVisualizer = spreadVisualizer;
+(window as any).__openFootprintSettings = openFootprintSettingsModal;
+(window as any).__toggleLiquidityHeatmap = toggleLiquidityHeatmap;
 
-// ---- Register Footprint (Order Flow) Chart Style --------------------------
+// ---- Register Footprint (Order Flow) Chart Style & Heatmap ---------------
 
 try {
   registerFootprintStyle();
+  registerLiquidityHeatmap();
+  TickAggregator.getInstance();
 } catch (err) {
-  console.warn('[omni] footprint style registration:', err);
+  console.warn('[omni] footprint, heatmap & tick engine registration:', err);
 }
 
 // ---- Register Topbar Icons & Widget Actions -------------------------------
@@ -147,9 +163,24 @@ try {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><line x1="8" y1="2.5" x2="8" y2="13.5"/></svg>',
   );
   registerIcon(
+    'quad-layout',
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><line x1="8" y1="2.5" x2="8" y2="13.5"/><line x1="2.5" y1="8" x2="13.5" y2="8"/></svg>',
+  );
+  registerIcon(
     'info-about',
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><line x1="8" y1="11" x2="8" y2="7.5"/><line x1="8" y1="5" x2="8.01" y2="5"/></svg>',
   );
+
+  registerWidgetAction({
+    id: 'omni.orderflow-quad-layout',
+    target: 'topbar',
+    label: 'Quad Layout',
+    icon: 'quad-layout',
+    order: 81.9,
+    run: () => {
+      if (workspace) applyOrderFlowQuadLayout(workspace, showToast);
+    },
+  });
 
   registerWidgetAction({
     id: 'vela.add-chart-cell',
@@ -192,6 +223,22 @@ try {
     order: 85,
     run: () => {
       if (workspace) openManageAlertsModal(workspace, showToast);
+    },
+  });
+
+  registerWidgetAction({
+    id: 'omni.custom-timeframe',
+    target: 'topbar',
+    label: '+ Timeframe',
+    icon: 'time-custom',
+    order: 85.5,
+    run: () => {
+      openCustomTimeframeModal((canonical) => {
+        if (workspace?.active) {
+          workspace.active.setTimeframe(canonical);
+          showToast(`Timeframe: ${formatTfDisplay(canonical)}`);
+        }
+      });
     },
   });
 
@@ -463,6 +510,33 @@ try {
     order: -29,
     run: () => {
       pineEditor.open();
+    },
+  });
+
+  registerWidgetAction({
+    id: 'omni.custom-timeframe-context',
+    target: 'context:body',
+    label: '⏱️ Custom Timeframe (Ticks, Sec, Range)...',
+    order: -28,
+    run: () => {
+      openCustomTimeframeModal((canonical) => {
+        if (workspace?.active) {
+          workspace.active.setTimeframe(canonical);
+          showToast(`Timeframe: ${formatTfDisplay(canonical)}`);
+        }
+      });
+    },
+  });
+
+  registerWidgetAction({
+    id: 'omni.orderflow-quad-context',
+    target: 'context:body',
+    label: '📊 Load Order Flow Quad Layout (4-in-1)...',
+    order: -27,
+    run: () => {
+      if (workspace) {
+        applyOrderFlowQuadLayout(workspace, showToast);
+      }
     },
   });
 
@@ -768,8 +842,15 @@ async function mountApp(initialSymbol?: string, initialTf?: string): Promise<voi
       },
     },
     indicators: '/api/indicators',
-    timeframes: ['1', '3', '5', '15', '30', '60', '120', '240', 'D', 'W', 'M'],
-    timeframeFavorites: ['1', '5', '15', '60', '240', 'D'],
+    timeframes: [
+      '50T', '100T', '250T', '500T', '1000T',
+      '1S', '5S', '10S', '15S', '30S', '45S',
+      '1', '2', '3', '5', '10', '12', '15', '30', '45',
+      '60', '120', '180', '240', '360', '480', '720',
+      'D', '2D', '3D', 'W', 'M', '3M', '12M',
+      '5R', '10R', '20R'
+    ],
+    timeframeFavorites: ['100T', '500T', '1S', '15S', '1', '3', '5', '15', '60', '240', 'D'],
     sync: {
       viewport: false,
       crosshair: false,
@@ -794,6 +875,7 @@ async function mountApp(initialSymbol?: string, initialTf?: string): Promise<voi
   initWorkspaceFeatures(workspace);
   mountTopbarControls();
   checkRiskDisclaimer();
+  initUpdateChecker(showToast);
 }
 
 function initWorkspaceFeatures(ws: VelaWorkspace): void {
@@ -921,7 +1003,51 @@ function initWorkspaceFeatures(ws: VelaWorkspace): void {
   }, 1500);
 }
 
-// ---- Topbar Controls: Multi-Broker Chip & Kill Switch ----------------------
+// ---- Topbar Controls: Multi-Broker Chip, Kill Switch & Live Tick Counter ----
+
+let tickCounterChip: HTMLElement | null = null;
+
+function mountTickCounter(topbarRight: HTMLElement): void {
+  if (!tickCounterChip) {
+    tickCounterChip = document.createElement('div');
+    tickCounterChip.id = 'omni-tick-counter';
+    tickCounterChip.style.cssText = `
+      display: none;
+      align-items: center;
+      gap: 5px;
+      padding: 0 8px;
+      height: 26px;
+      line-height: 26px;
+      border-radius: 4px;
+      background: rgba(34, 211, 165, 0.12);
+      border: 1px solid rgba(34, 211, 165, 0.3);
+      color: #22d3a5;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      margin-right: 4px;
+      user-select: none;
+      transition: all 0.15s ease;
+    `;
+    tickCounterChip.innerHTML = `<span>⚡</span><span class="omni-tick-text">0 / 100 Ticks</span>`;
+
+    window.addEventListener('omni:tick-progress', (e: any) => {
+      const detail = e.detail;
+      if (!detail || !tickCounterChip) return;
+      const tf = (window as any).workspace?.active?.timeframe || '';
+      if (tf.toUpperCase().endsWith('T')) {
+        tickCounterChip.style.display = 'inline-flex';
+        const txt = tickCounterChip.querySelector('.omni-tick-text');
+        if (txt) txt.textContent = `${detail.current} / ${detail.target} Ticks`;
+      } else {
+        tickCounterChip.style.display = 'none';
+      }
+    });
+  }
+  if (tickCounterChip.parentElement !== topbarRight) {
+    topbarRight.prepend(tickCounterChip);
+  }
+}
 
 function mountTopbarControls(): void {
   setTimeout(() => {
@@ -973,6 +1099,7 @@ function mountTopbarControls(): void {
 
     if (killSwitchBtn.parentElement !== topbarRight) topbarRight.prepend(killSwitchBtn);
     if (brokerChip.parentElement !== topbarRight) topbarRight.prepend(brokerChip);
+    mountTickCounter(topbarRight);
 
     spreadVisualizer.mountToTopbar();
   }, 120);
@@ -1084,24 +1211,41 @@ function escapeHtml(t: string): string {
 // ---- Standard Keyboard Shortcuts & Quick Timeframe Switcher --------------
 
 const TIMEFRAMES_STEP = [
-  '1', '2', '3', '5', '10', '15', '30', '60', '120', '240', '720', '1440', '10080', '43200',
+  '50T', '100T', '250T', '500T', '1000T',
+  '1S', '5S', '10S', '15S', '30S', '45S',
+  '1', '2', '3', '5', '10', '12', '15', '30', '45',
+  '60', '120', '180', '240', '360', '480', '720',
+  '1440', '2880', '4320', '10080', '43200', '129600', '518400',
+  '5R', '10R', '20R'
 ];
 
 function normalizeTf(tf: string): string {
+  const upper = String(tf || '').trim().toUpperCase();
+  if (upper.endsWith('T') || upper.endsWith('R') || upper.endsWith('V')) return upper;
+  if (upper.endsWith('S')) return upper;
   const map: Record<string, string> = {
-    '1m': '1', '2m': '2', '3m': '3', '5m': '5', '10m': '10',
-    '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240',
-    '12h': '720', '1d': '1440', '1D': '1440', 'D': '1440',
+    '1m': '1', '2m': '2', '3m': '3', '4m': '4', '5m': '5', '10m': '10', '12m': '12',
+    '15m': '15', '30m': '30', '45m': '45', '1h': '60', '2h': '120', '3h': '180', '4h': '240',
+    '6h': '360', '8h': '480', '12h': '720',
+    '1d': '1440', '1D': '1440', 'D': '1440',
+    '2d': '2880', '2D': '2880', '3d': '4320', '3D': '4320',
     '1w': '10080', '1W': '10080', 'W': '10080',
     '1M': '43200', '1mo': '43200', 'M': '43200',
+    '3M': '129600', '3mo': '129600',
+    '12M': '518400', '1y': '518400', '1Y': '518400', 'Y': '518400',
   };
-  return map[tf] || tf;
+  return map[tf] || map[upper] || tf;
 }
 
 function formatTfDisplay(tf: string): string {
+  const upper = String(tf || '').trim().toUpperCase();
+  if (upper.endsWith('T') || upper.endsWith('R') || upper.endsWith('V')) return upper;
+  if (upper.endsWith('S')) return upper.toLowerCase();
   const n = parseInt(tf, 10);
   if (isNaN(n)) return tf;
   if (n < 60) return `${n}m`;
+  if (n % 43200 === 0) return `${n / 43200}M`;
+  if (n % 10080 === 0) return `${n / 10080}W`;
   if (n % 1440 === 0) return `${n / 1440}D`;
   if (n % 60 === 0) return `${n / 60}h`;
   return `${n}m`;

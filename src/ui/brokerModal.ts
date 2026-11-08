@@ -38,15 +38,21 @@ function getBrokerCategory(id: string): string {
 
 function getStatusBadge(adapter: BrokerAdapter, isConnected: boolean): string {
   if (adapter.id === 'paper') {
-    return '<span style="font-size: 10px; background: rgba(34, 211, 165, 0.15); color: var(--vela-accent, #22d3a5); padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.3px;">BUILT-IN</span>';
+    return '<span style="font-size: 10px; background: rgba(34, 211, 165, 0.15); color: var(--vela-accent, #22d3a5); padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.3px;">BUILT-IN (STABLE)</span>';
   }
   if (isConnected) {
+    if (adapter.status === 'in-development') {
+      return '<span style="font-size: 10px; background: rgba(234, 179, 8, 0.18); color: #fbbf24; padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.3px;">SIMULATED (DEV)</span>';
+    }
     return '<span style="font-size: 10px; background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0.3px;">CONNECTED</span>';
   }
-  if (adapter.id === 'ctrader' || adapter.id === 'binance' || adapter.id === 'ibkr' || adapter.id === 'oanda' || adapter.id === 'alpaca' || adapter.id === 'metatrader5') {
-    return '<span style="font-size: 10px; background: rgba(148, 163, 184, 0.15); color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-weight: 600;">READY</span>';
+  if (adapter.id === 'ctrader') {
+    return '<span style="font-size: 10px; background: rgba(79, 139, 255, 0.18); color: #60a5fa; padding: 2px 6px; border-radius: 4px; font-weight: 600;">BETA (LIVE API)</span>';
   }
-  return '<span style="font-size: 10px; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 2px 6px; border-radius: 4px; font-weight: 600;">BETA</span>';
+  if (adapter.status === 'in-development') {
+    return '<span style="font-size: 10px; background: rgba(234, 179, 8, 0.15); color: #f59e0b; padding: 2px 6px; border-radius: 4px; font-weight: 600;">IN DEV</span>';
+  }
+  return '<span style="font-size: 10px; background: rgba(148, 163, 184, 0.15); color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-weight: 600;">EXPERIMENTAL</span>';
 }
 
 export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => void): void {
@@ -167,6 +173,17 @@ export function openBrokerModal(onAccountSelected?: (account: BrokerAccount) => 
             : ''
         }
       </div>
+
+      <!-- In-Development Safety Notice -->
+      ${
+        adapter.status === 'in-development'
+          ? `
+        <div style="padding: 12px 14px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; font-size: 12px; color: #fbbf24; line-height: 1.5;">
+          <strong style="color: #f59e0b;">⚠️ In Development Notice:</strong> This adapter interface is an architectural preview. Live execution pipes to broker servers are in active development. Orders placed with this adapter are simulated in local memory and are <strong>NOT</strong> routed to a live broker. Do not enter live production credentials.
+        </div>
+      `
+          : ''
+      }
 
       <!-- Instructions banner -->
       ${

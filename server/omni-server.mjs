@@ -18,6 +18,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { WebSocketServer, WebSocket } from 'ws';
 
 const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -173,39 +174,78 @@ function resolveYahooSymbol(symbol) {
 
 function resolveYahooTimeframe(tf) {
   const s = String(tf).toLowerCase();
+  if (s.endsWith('t')) {
+    const ticks = parseInt(s, 10) || 100;
+    return { interval: '1m', range: '1d', tickBars: ticks };
+  }
+  if (s.endsWith('r')) {
+    const range = parseInt(s, 10) || 10;
+    return { interval: '1m', range: '1d', rangeBars: range };
+  }
+  if (s.endsWith('s')) {
+    const sec = parseInt(s, 10) || 15;
+    return { interval: '1m', range: '1d', subMinuteSeconds: sec };
+  }
   if (s === '1' || s === '1m') return { interval: '1m', range: '2d' };
   if (s === '2' || s === '2m') return { interval: '2m', range: '5d' };
   if (s === '3' || s === '3m') return { interval: '2m', range: '5d' };
+  if (s === '4' || s === '4m') return { interval: '5m', range: '5d' };
   if (s === '5' || s === '5m') return { interval: '5m', range: '5d' };
+  if (s === '10' || s === '10m') return { interval: '5m', range: '5d' };
+  if (s === '12' || s === '12m') return { interval: '15m', range: '10d' };
   if (s === '15' || s === '15m') return { interval: '15m', range: '10d' };
   if (s === '30' || s === '30m') return { interval: '30m', range: '1mo' };
-  if (s === '60' || s === '1h' || s === '120' || s === '240') return { interval: '60m', range: '3mo' };
-  if (s === 'd' || s === '1d' || s === '1440') return { interval: '1d', range: '1y' };
+  if (s === '45' || s === '45m') return { interval: '15m', range: '1mo' };
+  if (
+    s === '60' || s === '1h' ||
+    s === '120' || s === '2h' ||
+    s === '180' || s === '3h' ||
+    s === '240' || s === '4h' ||
+    s === '360' || s === '6h' ||
+    s === '480' || s === '8h' ||
+    s === '720' || s === '12h'
+  ) {
+    return { interval: '60m', range: '3mo' };
+  }
+  if (s === 'd' || s === '1d' || s === '1440' || s === '2d' || s === '2880' || s === '3d' || s === '4320') {
+    return { interval: '1d', range: '1y' };
+  }
   if (s === 'w' || s === '1w' || s === '10080') return { interval: '1wk', range: '2y' };
-  if (s === 'm' || s === '1m' || s === '43200') return { interval: '1mo', range: '5y' };
+  if (
+    s === 'm' || s === '1m' || s === '43200' ||
+    s === '3m' || s === '129600' ||
+    s === '12m' || s === '518400' || s === '1y'
+  ) {
+    return { interval: '1mo', range: '5y' };
+  }
   return { interval: '15m', range: '5d' };
 }
 
-function generateSyntheticBars(symbol, count = 300, intervalMinutes = 15) {
+function generateSyntheticBars(symbol, count = 300, intervalMinutes = 15, subMinuteSeconds = 0, tickCount = 0) {
   const clean = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
   const basePrice =
     BASE_PRICES[clean] ||
     (clean.endsWith('JPY') ? 150.0 : clean.includes('USD') && clean.length === 6 ? 1.1 : 100.0);
   const volatility = basePrice * 0.0018;
   const now = Date.now();
-  const stepMs = intervalMinutes * 60 * 1000;
+  let stepMs = intervalMinutes * 60 * 1000;
+  if (tickCount > 0) {
+    stepMs = Math.max(1000, Math.round(tickCount * 60));
+  } else if (subMinuteSeconds > 0) {
+    stepMs = subMinuteSeconds * 1000;
+  }
   const bars = [];
   let currentPrice = basePrice * 0.98;
 
   for (let i = count; i >= 0; i--) {
     const time = now - i * stepMs;
     const seed = Math.sin(time / 100000) * 10000;
-    const change = (seed - Math.floor(seed) - 0.495) * volatility;
+    const change = (seed - Math.floor(seed) - 0.495) * (subMinuteSeconds > 0 || tickCount > 0 ? volatility * 0.3 : volatility);
     const open = currentPrice;
     const close = open + change;
     const high = Math.max(open, close) + Math.abs(change) * 0.5 * (1 + ((seed * 3) % 1));
     const low = Math.min(open, close) - Math.abs(change) * 0.5 * (1 + ((seed * 5) % 1));
-    const volume = Math.round(100 + Math.abs(seed % 500));
+    const volume = tickCount > 0 ? tickCount : Math.round(100 + Math.abs(seed % 500));
     bars.push({ time, open, high, low, close, volume });
     currentPrice = close;
   }
@@ -214,12 +254,24 @@ function generateSyntheticBars(symbol, count = 300, intervalMinutes = 15) {
 
 async function fetchMarketBars(symbol, tf) {
   const clean = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const { interval, range } = resolveYahooTimeframe(tf);
-  const cacheKey = `${clean}:${interval}:${range}`;
+  const { interval, range, subMinuteSeconds, tickBars, rangeBars } = resolveYahooTimeframe(tf);
+  const cacheKey = `${clean}:${interval}:${range}:${subMinuteSeconds || 0}:${tickBars || 0}:${rangeBars || 0}`;
   const cached = marketDataCache.get(cacheKey);
 
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.bars;
+  }
+
+  // If tick bars or range bars requested, return specialized synthetic/real tick series
+  if (tickBars) {
+    const bars = generateSyntheticBars(clean, 300, 1, 0, tickBars);
+    marketDataCache.set(cacheKey, { timestamp: Date.now(), bars });
+    return bars;
+  }
+  if (rangeBars) {
+    const bars = generateSyntheticBars(clean, 300, 1, 0, 100);
+    marketDataCache.set(cacheKey, { timestamp: Date.now(), bars });
+    return bars;
   }
 
   const ySymbol = resolveYahooSymbol(clean);
@@ -260,6 +312,33 @@ async function fetchMarketBars(symbol, tf) {
         }
         if (bars.length > 0) {
           bars.sort((a, b) => a.time - b.time);
+
+          if (subMinuteSeconds) {
+            const subBars = [];
+            const count = Math.max(1, Math.round(60 / subMinuteSeconds));
+            const subMs = subMinuteSeconds * 1000;
+            for (const b of bars) {
+              const range = Math.max(0, b.high - b.low);
+              const volPerSub = Math.max(1, Math.round((b.volume || 10) / count));
+              for (let i = 0; i < count; i++) {
+                const subOpen = i === 0 ? b.open : subBars[subBars.length - 1].close;
+                const subClose = i === count - 1 ? b.close : subOpen + (b.close - b.open) / count;
+                const subHigh = Math.max(subOpen, subClose, Math.min(b.high, Math.max(subOpen, subClose) + range * 0.15));
+                const subLow = Math.min(subOpen, subClose, Math.max(b.low, Math.min(subOpen, subClose) - range * 0.15));
+                subBars.push({
+                  time: b.time + i * subMs,
+                  open: subOpen,
+                  high: subHigh,
+                  low: subLow,
+                  close: subClose,
+                  volume: volPerSub,
+                });
+              }
+            }
+            marketDataCache.set(cacheKey, { timestamp: Date.now(), bars: subBars });
+            return subBars;
+          }
+
           marketDataCache.set(cacheKey, { timestamp: Date.now(), bars });
           return bars;
         }
@@ -274,7 +353,7 @@ async function fetchMarketBars(symbol, tf) {
     : interval.endsWith('d')
     ? 1440
     : 15;
-  const fallback = generateSyntheticBars(clean, 300, intervalMinutes || 15);
+  const fallback = generateSyntheticBars(clean, 300, intervalMinutes || 15, subMinuteSeconds || 0);
   marketDataCache.set(cacheKey, { timestamp: Date.now(), bars: fallback });
   return fallback;
 }
@@ -650,6 +729,82 @@ function requireSessionToken(req, res) {
   return true;
 }
 
+// ---- Auto-Updater & System Version Service --------------------------------
+let updateCache = { timestamp: 0, data: null };
+const UPDATE_CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+
+async function getUpdateStatus() {
+  if (updateCache.data && Date.now() - updateCache.timestamp < UPDATE_CACHE_TTL_MS) {
+    return updateCache.data;
+  }
+
+  const isGitRepo = fsSync.existsSync(path.join(APP_DIR, '.git'));
+  let localSha = '';
+  if (isGitRepo) {
+    try {
+      const res = spawnSync('git', ['rev-parse', '--short', 'HEAD'], {
+        cwd: APP_DIR,
+        encoding: 'utf8',
+        shell: process.platform === 'win32',
+      });
+      if (res.status === 0 && res.stdout) {
+        localSha = res.stdout.trim();
+      }
+    } catch {}
+  }
+
+  let pkgVersion = '0.1.0';
+  try {
+    const pkg = JSON.parse(await fs.readFile(path.join(APP_DIR, 'package.json'), 'utf8'));
+    pkgVersion = pkg.version || '0.1.0';
+  } catch {}
+
+  let remoteSha = '';
+  let commitMessage = '';
+  let commitDate = '';
+  let updateAvailable = false;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch('https://api.github.com/repos/777Business/OmniTrading/commits/main', {
+      headers: {
+        'User-Agent': 'OmniTrading-Desktop',
+        'Accept': 'application/vnd.github.v3+json',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (res.ok) {
+      const info = await res.json();
+      if (info && info.sha) {
+        remoteSha = info.sha.slice(0, 7);
+        commitMessage = (info.commit?.message || '').split('\n')[0].slice(0, 100);
+        commitDate = info.commit?.author?.date || '';
+        if (localSha && remoteSha && localSha !== remoteSha) {
+          updateAvailable = true;
+        }
+      }
+    }
+  } catch {
+    // Offline or rate-limited
+  }
+
+  const result = {
+    updateAvailable,
+    currentVersion: pkgVersion,
+    currentCommit: localSha || 'local',
+    latestCommit: remoteSha || localSha || 'latest',
+    commitMessage: commitMessage || 'Latest OmniTrading improvements',
+    commitDate,
+    isGitRepo,
+  };
+
+  updateCache = { timestamp: Date.now(), data: result };
+  return result;
+}
+
 // ---- Main Server Router ---------------------------------------------------
 
 const server = http.createServer(async (req, res) => {
@@ -995,6 +1150,111 @@ const server = http.createServer(async (req, res) => {
         })),
       });
       return;
+    }
+
+    // System: Check for updates (from GitHub main)
+    if (pathname === '/api/system/update-status' && req.method === 'GET') {
+      const status = await getUpdateStatus();
+      sendJson(res, 200, status);
+      return;
+    }
+
+    // System: Perform 1-click update
+    if (pathname === '/api/system/perform-update' && req.method === 'POST') {
+      if (!requireSessionToken(req, res)) return;
+
+      const isGitRepo = fsSync.existsSync(path.join(APP_DIR, '.git'));
+      if (!isGitRepo) {
+        sendJson(res, 400, {
+          success: false,
+          error: 'This installation is not a Git repository. To update, pull changes via Git or download the latest release from https://github.com/777Business/OmniTrading',
+        });
+        return;
+      }
+
+      try {
+        console.log('[omni-update] Pulling latest changes from remote...');
+        const isWin = process.platform === 'win32';
+        const pullRes = spawnSync('git', ['pull', '--rebase', 'origin', 'main'], {
+          cwd: APP_DIR,
+          encoding: 'utf8',
+          shell: isWin,
+          timeout: 45000,
+        });
+
+        if (pullRes.status !== 0) {
+          console.error('[omni-update] git pull failed:', pullRes.stderr || pullRes.stdout);
+          sendJson(res, 500, {
+            success: false,
+            error: `git pull failed: ${pullRes.stderr || pullRes.stdout || 'Unknown error'}`,
+          });
+          return;
+        }
+
+        console.log('[omni-update] Running patch-vela.cjs...');
+        const patchRes = spawnSync(process.execPath, [path.join(APP_DIR, 'scripts', 'patch-vela.cjs')], {
+          cwd: APP_DIR,
+          encoding: 'utf8',
+          timeout: 20000,
+        });
+        if (patchRes.status !== 0) {
+          console.warn('[omni-update] patch-vela.cjs notice:', patchRes.stderr);
+        }
+
+        console.log('[omni-update] Rebuilding application bundle...');
+        const esbuildBin = path.join(APP_DIR, 'node_modules', '.bin', isWin ? 'esbuild.cmd' : 'esbuild');
+        const esbuildArgs = [
+          'src/main.ts',
+          '--bundle',
+          '--format=iife',
+          '--target=es2022',
+          '--outfile=dist/app.js',
+        ];
+
+        let buildRes;
+        if (fsSync.existsSync(esbuildBin)) {
+          buildRes = spawnSync(esbuildBin, esbuildArgs, {
+            cwd: APP_DIR,
+            encoding: 'utf8',
+            shell: isWin,
+            timeout: 30000,
+          });
+        }
+        if (!buildRes || buildRes.status !== 0) {
+          const directEsbuild = path.join(APP_DIR, 'node_modules', 'esbuild', 'bin', 'esbuild');
+          buildRes = spawnSync(process.execPath, [directEsbuild, ...esbuildArgs], {
+            cwd: APP_DIR,
+            encoding: 'utf8',
+            timeout: 30000,
+          });
+        }
+
+        if (buildRes && buildRes.status !== 0) {
+          console.error('[omni-update] esbuild failed:', buildRes.stderr);
+          sendJson(res, 500, {
+            success: false,
+            error: `Failed to compile bundle: ${buildRes.stderr || 'Build failed'}`,
+          });
+          return;
+        }
+
+        // Reset cache
+        updateCache = { timestamp: 0, data: null };
+
+        console.log('[omni-update] Application updated successfully.');
+        sendJson(res, 200, {
+          success: true,
+          message: 'OmniTrading updated successfully. Reloading application...',
+        });
+        return;
+      } catch (err) {
+        console.error('[omni-update] Update exception:', err);
+        sendJson(res, 500, {
+          success: false,
+          error: err.message || 'Internal update error',
+        });
+        return;
+      }
     }
 
     // Static Assets

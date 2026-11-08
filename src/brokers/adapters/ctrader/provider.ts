@@ -42,14 +42,28 @@ const DIRECT: Record<string, PeriodSpec> = {
 const DIRECT_SORTED = Object.values(DIRECT).sort((a, b) => b.minutes - a.minutes);
 
 const TF_ALIASES: Record<string, string> = {
+  '1s': '1S',
+  '5s': '5S',
+  '10s': '10S',
+  '15s': '15S',
+  '30s': '30S',
+  '45s': '45S',
+  '1S': '1S',
+  '5S': '5S',
+  '10S': '10S',
+  '15S': '15S',
+  '30S': '30S',
+  '45S': '45S',
   '1m': '1',
   '2m': '2',
   '3m': '3',
   '4m': '4',
   '5m': '5',
   '10m': '10',
+  '12m': '12',
   '15m': '15',
   '30m': '30',
+  '45m': '45',
   '1h': '60',
   '2h': '120',
   '3h': '180',
@@ -58,11 +72,17 @@ const TF_ALIASES: Record<string, string> = {
   '8h': '480',
   '12h': '720',
   '1d': '1440',
+  '2d': '2880',
+  '3d': '4320',
   '1w': '10080',
   '1mo': '43200',
   '1D': '1440',
+  '2D': '2880',
+  '3D': '4320',
   '1W': '10080',
   '1M': '43200',
+  '3M': '129600',
+  '12M': '518400',
   D: '1440',
   W: '10080',
   M: '43200',
@@ -175,6 +195,7 @@ export class CtProvider implements DataProvider {
 
     const baseBars = normalize(chunks);
     if (resolved.factor === 1) return baseBars;
+    if (resolved.factor < 1) return subdivide(baseBars, resolved.targetMinutes * 60_000);
     return aggregate(baseBars, resolved.targetMinutes * 60_000);
   }
 
@@ -492,6 +513,17 @@ export class CtProvider implements DataProvider {
 export function resolveTimeframe(timeframe: string): ResolvedTimeframe {
   const raw = String(timeframe ?? '60').trim();
   const normalized = TF_ALIASES[raw] ?? TF_ALIASES[raw.toLowerCase()] ?? raw;
+  const upper = normalized.toUpperCase();
+
+  if (upper.endsWith('T') || upper.endsWith('R')) {
+    return { base: DIRECT['1'], targetMinutes: 0.25, factor: 0.25 };
+  }
+
+  if (upper.endsWith('S')) {
+    const s = parseInt(upper, 10) || 15;
+    const mins = Math.max(0.01, s / 60);
+    return { base: DIRECT['1'], targetMinutes: mins, factor: mins };
+  }
 
   const direct = DIRECT[normalized];
   if (direct) {
@@ -535,6 +567,31 @@ function normalize(bars: OHLCV[]): OHLCV[] {
     byTime.set(bar.time, bar);
   }
   return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
+
+function subdivide(bars: OHLCV[], subMs: number): OHLCV[] {
+  const result: OHLCV[] = [];
+  const count = Math.max(1, Math.round(60_000 / subMs));
+  for (const bar of bars) {
+    const range = Math.max(0, bar.high - bar.low);
+    const volPerSub = Math.max(1, Math.round((bar.volume ?? 0) / count));
+    for (let i = 0; i < count; i++) {
+      const t = bar.time + i * subMs;
+      const subOpen = i === 0 ? bar.open : result[result.length - 1].close;
+      const subClose = i === count - 1 ? bar.close : subOpen + (bar.close - bar.open) / count;
+      const subHigh = Math.max(subOpen, subClose, Math.min(bar.high, Math.max(subOpen, subClose) + range * 0.15));
+      const subLow = Math.min(subOpen, subClose, Math.max(bar.low, Math.min(subOpen, subClose) - range * 0.15));
+      result.push({
+        time: t,
+        open: subOpen,
+        high: subHigh,
+        low: subLow,
+        close: subClose,
+        volume: volPerSub,
+      });
+    }
+  }
+  return result;
 }
 
 function aggregate(bars: OHLCV[], bucketMs: number): OHLCV[] {

@@ -29,7 +29,7 @@ export class IBKRAdapter implements BrokerAdapter {
   public readonly id = 'ibkr';
   public readonly name = 'Interactive Brokers (IBKR)';
   public readonly description = 'Connect to IBKR via Client Portal Web Gateway or TWS. Multi-asset global execution.';
-  public readonly status = 'stable';
+  public readonly status = 'in-development';
   public readonly supportedEnvironments: BrokerEnvironment[] = ['paper', 'live'];
 
   public readonly capabilities: BrokerCapabilities = {

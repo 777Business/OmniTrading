@@ -629,3 +629,89 @@ export function closeCell(
     console.error('[vela] Failed to close cell cleanly:', err);
   }
 }
+
+/**
+ * Apply the 4-Chart Order Flow Quad Layout:
+ * Cell 0 (Top-Left): Normal Candlestick Chart (15m, Blue color group)
+ * Cell 1 (Top-Right): Liquidity Heatmap Chart (5m, Blue color group)
+ * Cell 2 (Bottom-Left): Footprint Chart with Bar Statistics (5m, Blue color group)
+ * Cell 3 (Bottom-Right): Tick Chart (1000T, Blue color group)
+ */
+export function applyOrderFlowQuadLayout(
+  workspace: VelaWorkspace,
+  onNotify?: (msg: string) => void,
+): boolean {
+  try {
+    const ws = workspace as any;
+    const activeSymbol = workspace.active?.symbol || 'BTCUSDT';
+
+    // 1. Set 4-grid layout
+    ws.setLayout('4');
+
+    // 2. Fetch cells
+    const cells = workspace.cells();
+
+    // Link all 4 cells to Blue group for unified symbol switching
+    cells.forEach((cell) => {
+      setCellColorGroupDirect(cell.id, 'blue');
+      try {
+        cell.setSymbol(activeSymbol);
+      } catch {}
+    });
+
+    // 3. Configure cell roles:
+    // Cell 0: Normal Candlestick Chart (15m)
+    if (cells[0]) {
+      try {
+        cells[0].setTimeframe('15');
+        cells[0].chart?.setPriceStyle?.('candles');
+      } catch {}
+    }
+
+    // Cell 1: Liquidity Heatmap Chart (5m)
+    if (cells[1]) {
+      try {
+        cells[1].setTimeframe('5');
+        cells[1].chart?.setPriceStyle?.('candles');
+      } catch {}
+    }
+
+    // Cell 2: Footprint Chart (5m)
+    if (cells[2]) {
+      try {
+        cells[2].setTimeframe('5');
+        cells[2].chart?.setPriceStyle?.('footprint');
+      } catch {}
+    }
+
+    // Cell 3: Tick Chart (1000T)
+    if (cells[3]) {
+      try {
+        cells[3].setTimeframe('1000T');
+        cells[3].chart?.setPriceStyle?.('candles');
+      } catch {}
+    }
+
+    updateWorkspaceColorSync(workspace);
+
+    ws.syncCellPresentation?.();
+    ws.refreshCellControls?.();
+    window.dispatchEvent(new Event('resize'));
+
+    try {
+      ws.persistNow?.();
+      if (typeof (window as any).__velaAutoSave === 'function') {
+        (window as any).__velaAutoSave();
+      }
+    } catch {}
+
+    if (onNotify) {
+      onNotify('Loaded Order Flow Quad Layout (Candles, Heatmap, Footprint, Tick)');
+    }
+    return true;
+  } catch (err) {
+    console.error('[omni] Failed to apply Order Flow Quad layout', err);
+    return false;
+  }
+}
+

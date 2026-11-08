@@ -1406,6 +1406,35 @@ for (const file of files) {
     modified = true;
   }
 
+  // 26. Custom Timeframe Parser: Ticks ('T'), Range ('R'), Volume ('V')
+  const targetUnitKey = `return letter === "S" || letter === "H" || letter === "D" || letter === "W" || letter === "M" || letter === "Y" ? letter : null;`;
+  const replUnitKey = `return letter === "S" || letter === "H" || letter === "D" || letter === "W" || letter === "M" || letter === "Y" || letter === "T" || letter === "R" || letter === "V" ? letter : null;`;
+  if (content.includes(targetUnitKey)) {
+    content = content.replaceAll(targetUnitKey, replUnitKey);
+    modified = true;
+  }
+
+  const targetCanonFor = `function canonicalFor(key, count) {\n  if (key === "S") return \`\${count}S\`;\n  return \`\${count * UNIT_MINUTES[key]}\`;\n}`;
+  const replCanonFor = `function canonicalFor(key, count) {\n  if (key === "S") return \`\${count}S\`;\n  if (key === "T") return \`\${count}T\`;\n  if (key === "R") return \`\${count}R\`;\n  if (key === "V") return \`\${count}V\`;\n  return \`\${count * (UNIT_MINUTES[key] || 1)}\`;\n}`;
+  if (content.includes(targetCanonFor)) {
+    content = content.replaceAll(targetCanonFor, replCanonFor);
+    modified = true;
+  }
+
+  const targetTfLabel = `function timeframeLabel(value, i18n) {\n  const parsed = parseTimeframe(value, i18n);`;
+  const replTfLabel = `function timeframeLabel(value, i18n) {\n  const rawUpper = String(value || "").trim().toUpperCase();\n  if (rawUpper.endsWith("T") || rawUpper.endsWith("R") || rawUpper.endsWith("V")) return rawUpper;\n  const parsed = parseTimeframe(value, i18n);`;
+  if (content.includes(targetTfLabel)) {
+    content = content.replaceAll(targetTfLabel, replTfLabel);
+    modified = true;
+  }
+
+  const targetUnitMs = `  S: 1e3,\n  MIN: 6e4,`;
+  const replUnitMs = `  S: 1e3,\n  T: 10,\n  R: 20,\n  V: 30,\n  MIN: 6e4,`;
+  if (content.includes(targetUnitMs)) {
+    content = content.replaceAll(targetUnitMs, replUnitMs);
+    modified = true;
+  }
+
   if (modified) {
     fs.writeFileSync(p, content, 'utf8');
   }

@@ -27,8 +27,8 @@ const STORAGE_KEY = 'omni-broker-mt5';
 export class MetaTrader5Adapter implements BrokerAdapter {
   public readonly id = 'metatrader5';
   public readonly name = 'MetaTrader 5 (Forex & Prop Firms)';
-  public readonly description = 'Connect to any MT5 broker or Prop Firm (FTMO, IC Markets, Pepperstone) via Gateway/Bridge.';
-  public readonly status = 'stable';
+  public readonly description = 'Connect to MT5 brokers or Prop Firms (FTMO, IC Markets, Pepperstone) via local Bridge.';
+  public readonly status = 'in-development';
   public readonly supportedEnvironments: BrokerEnvironment[] = ['demo', 'live'];
 
   public readonly capabilities: BrokerCapabilities = {
@@ -93,7 +93,7 @@ export class MetaTrader5Adapter implements BrokerAdapter {
     ],
     docsUrl: 'https://www.mql5.com/en/docs/integration/python_metatrader5',
     instructions:
-      'Enter your MetaTrader 5 broker server name and numeric login. You can trade with Demo or Live accounts.',
+      '⚠️ Note: MetaTrader 5 adapter is currently IN DEVELOPMENT. To route live orders to an MT5 terminal, the local MT5 Python Bridge (scripts/mt5-bridge.py) must be running on port 8000. Without the bridge, orders are simulated in local memory.',
   };
 
   private connected = false;

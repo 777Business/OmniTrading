@@ -34,11 +34,12 @@ if (!fs.existsSync(distAppJs)) {
   }
 
   // Run esbuild
+  const isWin = process.platform === 'win32';
   const esbuildBin = path.join(
     rootDir,
     'node_modules',
     '.bin',
-    process.platform === 'win32' ? 'esbuild.cmd' : 'esbuild'
+    isWin ? 'esbuild.cmd' : 'esbuild'
   );
   const esbuildArgs = [
     'src/main.ts',
@@ -49,18 +50,35 @@ if (!fs.existsSync(distAppJs)) {
   ];
 
   let buildRes;
+  const spawnOpts = {
+    cwd: rootDir,
+    stdio: 'inherit',
+    shell: isWin,
+  };
+
   if (fs.existsSync(esbuildBin)) {
-    buildRes = spawnSync(esbuildBin, esbuildArgs, { cwd: rootDir, stdio: 'inherit' });
-  } else {
-    buildRes = spawnSync(process.execPath, [path.join(rootDir, 'node_modules', 'esbuild', 'bin', 'esbuild'), ...esbuildArgs], {
-      cwd: rootDir,
-      stdio: 'inherit',
-    });
+    buildRes = spawnSync(esbuildBin, esbuildArgs, spawnOpts);
   }
 
-  if (buildRes.status !== 0) {
+  // Fallback: if esbuild wrapper is missing or failed to run, invoke esbuild CLI directly via Node
+  if (!buildRes || buildRes.status !== 0 || buildRes.error) {
+    const directEsbuild = path.join(rootDir, 'node_modules', 'esbuild', 'bin', 'esbuild');
+    if (fs.existsSync(directEsbuild)) {
+      console.log('[omni-start] Retrying build via direct esbuild script...');
+      buildRes = spawnSync(process.execPath, [directEsbuild, ...esbuildArgs], {
+        cwd: rootDir,
+        stdio: 'inherit',
+      });
+    }
+  }
+
+  if (!buildRes || buildRes.status !== 0 || buildRes.error) {
+    if (buildRes && buildRes.error) {
+      console.error('[omni-start] esbuild process error:', buildRes.error);
+    }
     console.error('[omni-start] Failed to compile application bundle.');
-    process.exit(buildRes.status || 1);
+    console.error('[omni-start] Troubleshooting tip: If on npm 11+, run "npm rebuild esbuild" or "npm run build" manually.');
+    process.exit((buildRes && buildRes.status) || 1);
   }
   console.log('[omni-start] Application bundle compiled successfully.');
 }

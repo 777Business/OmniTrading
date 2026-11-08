@@ -28,7 +28,7 @@ export class BinanceAdapter implements BrokerAdapter {
   public readonly id = 'binance';
   public readonly name = 'Binance (Spot & Futures)';
   public readonly description = 'Connect directly to Binance Spot and USDT-M Futures via official API keys.';
-  public readonly status = 'stable';
+  public readonly status = 'in-development';
   public readonly supportedEnvironments: BrokerEnvironment[] = ['demo', 'live'];
 
   public readonly capabilities: BrokerCapabilities = {

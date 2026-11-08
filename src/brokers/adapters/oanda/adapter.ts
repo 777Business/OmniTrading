@@ -28,7 +28,7 @@ export class OandaAdapter implements BrokerAdapter {
   public readonly id = 'oanda';
   public readonly name = 'OANDA (Forex & CFDs)';
   public readonly description = 'Industry-benchmark Forex and CFD execution via OANDA v20 REST API.';
-  public readonly status = 'stable';
+  public readonly status = 'in-development';
   public readonly supportedEnvironments: BrokerEnvironment[] = ['demo', 'live'];
 
   public readonly capabilities: BrokerCapabilities = {
